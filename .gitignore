@@ -1,0 +1,15 @@
+# Data backups (track only data.csv for live loading)
+*.xlsx
+*.gsheet
+*.qmd
+
+# Environment and temp
+.venv/
+__pycache__/
+.streamlit/
+.qodo/
+.vscode/
+desktop.ini
+
+# Secrets
+secrets.toml
