@@ -287,6 +287,16 @@ def clean_data(df):
     if 'username' in df_clean.columns:
         df_clean = df_clean[~df_clean['username'].str.lower().isin(test_users)]
     
+        # 4. Filter only consented data (intro_consent.consent == 1)
+    if 'intro_consent.consent' in df_clean.columns:
+        # Convert to numeric to handle any string values
+        df_clean['intro_consent.consent'] = pd.to_numeric(df_clean['intro_consent.consent'], errors='coerce')
+        # Keep only records with consent = 1
+        df_clean = df_clean[df_clean['intro_consent.consent'] == 1]
+        st.info(f"✅ Filtered to {len(df_clean)} consented surveys (intro_consent.consent == 1)")
+    else:
+        st.warning("⚠️ 'intro_consent.consent' column not found. Using all data without consent filtering.")
+        
     # 4. Convert date columns to datetime
     date_columns = ['completed_time', 'started_time', 'received_on']
     for col in date_columns:
@@ -712,17 +722,10 @@ def create_overview_tab(df):
     st.markdown("### 📊 Overall Survey Summary")
     
     # Value boxes
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3 = st.columns(3)
     
+       
     with col1:
-        total_rows = len(df)
-        st.metric(
-            label="📋 Total Surveys", 
-            value=f"{total_rows:,}",
-            delta="All Records"
-        )
-    
-    with col2:
         # Count consent = 1 with progress percentage
         if 'intro_consent.consent' in df.columns:
             consented_count = df[df['intro_consent.consent'] == 1].shape[0]
@@ -740,7 +743,7 @@ def create_overview_tab(df):
                 delta="Column missing"
             )
     
-    with col3:
+    with col2:
         # Enumerator progress summary
         if 'username' in df.columns:
             unique_enumerators = df['username'].nunique()
@@ -760,14 +763,14 @@ def create_overview_tab(df):
                 delta="Column missing"
             )
     
-    with col4:
-        # Calculate days remaining until October 19, 2025
-        target_date = datetime(2025, 10, 19)
+    with col3:
+        # Calculate days remaining until October 20, 2025
+        target_date = datetime(2025, 10, 20)
         today = datetime.now()
-        days_remaining = (target_date - today).days
+        days_remaining = (today - target_date).days
         
         st.metric(
-            label="📅 Days Until Target", 
+            label="📅 Survey Days", 
             value=f"{days_remaining} days"
         )
     
