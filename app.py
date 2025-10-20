@@ -254,13 +254,18 @@ def clean_data(df):
     # 2. Replace '---' with NaN
     df_clean = df_clean.replace('---', np.nan)
     
-    # 3. Convert date columns to datetime
+    # 3. Remove data collected by test users
+    test_users = ['test', 'addisu']
+    if 'username' in df_clean.columns:
+        df_clean = df_clean[~df_clean['username'].str.lower().isin(test_users)]
+    
+    # 4. Convert date columns to datetime
     date_columns = ['completed_time', 'started_time', 'received_on']
     for col in date_columns:
         if col in df_clean.columns:
             df_clean[col] = pd.to_datetime(df_clean[col], errors='coerce')
     
-    # 4. Convert numeric columns and handle NA values for species data
+    # 5. Convert numeric columns and handle NA values for species data
     numeric_columns = ['intro_consent.consent', 'age', 'hh_size', 'land_own_total']
     
     # Define species columns for planting analysis
@@ -302,7 +307,7 @@ def clean_data(df):
         if col in df_clean.columns:
             df_clean[col] = pd.to_numeric(df_clean[col], errors='coerce')
     
-    # 5. Replace NA with 0 for specific species columns
+    # 6. Replace NA with 0 for specific species columns
     for col in species_columns_got + species_columns_planted:
         if col in df_clean.columns:
             df_clean[col] = df_clean[col].fillna(0)
@@ -604,96 +609,99 @@ def create_overview_tab(df):
             )
     
     with col4:
-        # Date range
-        if 'completed_time' in df.columns:
-            date_range = f"{df['completed_time'].min().strftime('%Y-%m-%d')} to {df['completed_time'].max().strftime('%Y-%m-%d')}"
-            st.metric(
-                label="📅 Date Range", 
-                value=date_range
-            )
-        else:
-            st.metric(
-                label="📅 Date Range", 
-                value="N/A"
-            )
+        # Calculate days remaining until October 19, 2025
+        target_date = datetime(2025, 10, 19)
+        today = datetime.now()
+        days_remaining = (today - target_date).days
+        
+        st.metric(
+            label="📅 No of Survey Days", 
+            value=f"{days_remaining} days"
+        )
     
     st.markdown("---")
     
-    # Quick progress overview
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        # Enumerator quick overview
-        st.markdown("#### 👥 Enumerator Progress Overview")
-        if 'username' in df.columns:
-            enum_progress = calculate_enumerator_progress(df)
-            if not enum_progress.empty:
-                avg_progress = enum_progress['progress_pct'].mean()
-                max_progress = enum_progress['progress_pct'].max()
-                min_progress = enum_progress['progress_pct'].min()
-                
-                st.metric("Average Progress", f"{avg_progress:.1f}%")
-                st.metric("Highest Progress", f"{max_progress:.1f}%")
-                st.metric("Lowest Progress", f"{min_progress:.1f}%")
-            else:
-                st.info("No enumerator data available")
-        else:
-            st.info("No username column found")
-    
-    with col2:
-        # Species quick overview
-        st.markdown("#### 🌱 Species Progress Overview")
-        species_progress = calculate_species_progress(df)
-        if not species_progress.empty:
-            avg_species_progress = species_progress['progress_pct'].mean()
-            max_species_progress = species_progress['progress_pct'].max()
-            completed_species = species_progress[species_progress['progress_pct'] >= 100].shape[0]
+    # Quick progress overview - Single column layout
+    st.markdown("#### 👥 Enumerator Progress Overview")
+    if 'username' in df.columns:
+        enum_progress = calculate_enumerator_progress(df)
+        if not enum_progress.empty:
+            col1, col2, col3 = st.columns(3)
             
-            st.metric("Average Species Progress", f"{avg_species_progress:.1f}%")
-            st.metric("Highest Species Progress", f"{max_species_progress:.1f}%")
-            st.metric("Completed Species Targets", f"{completed_species}/{len(species_progress)}")
+            with col1:
+                avg_progress = enum_progress['progress_pct'].mean()
+                st.metric("Average Progress", f"{avg_progress:.1f}%")
+            
+            with col2:
+                max_progress = enum_progress['progress_pct'].max()
+                st.metric("Highest Progress", f"{max_progress:.1f}%")
+            
+            with col3:
+                min_progress = enum_progress['progress_pct'].min()
+                st.metric("Lowest Progress", f"{min_progress:.1f}%")
         else:
-            st.info("No species progress data available")
+            st.info("No enumerator data available")
+    else:
+        st.info("No username column found")
     
     st.markdown("---")
     
-    # Charts row
-    col1, col2 = st.columns(2)
+    # Species quick overview
+    st.markdown("#### 🌱 Species Progress Overview")
+    species_progress = calculate_species_progress(df)
+    if not species_progress.empty:
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            avg_species_progress = species_progress['progress_pct'].mean()
+            st.metric("Average Species Progress", f"{avg_species_progress:.1f}%")
+        
+        with col2:
+            max_species_progress = species_progress['progress_pct'].max()
+            st.metric("Highest Species Progress", f"{max_species_progress:.1f}%")
+        
+        with col3:
+            completed_species = species_progress[species_progress['progress_pct'] >= 100].shape[0]
+            st.metric("Completed Species Targets", f"{completed_species}/{len(species_progress)}")
+    else:
+        st.info("No species progress data available")
     
-    with col1:
-        # Daily submissions chart
-        st.markdown("#### 📈 Daily Survey Submissions")
-        if 'completed_time' in df.columns:
-            daily_data = df.groupby(df['completed_time'].dt.date).size().reset_index(name='count')
-            fig_daily = px.bar(
-                daily_data, 
-                x='completed_time', 
-                y='count',
-                title="Surveys Completed by Day",
-                labels={'completed_time': 'Date', 'count': 'Number of Surveys'},
-                color='count',
-                color_continuous_scale='blues'
-            )
-            fig_daily.update_layout(showlegend=False)
-            st.plotly_chart(fig_daily, use_container_width=True)
-        else:
-            st.info("No completion time data available")
+    st.markdown("---")
     
-    with col2:
-        # Site distribution
-        st.markdown("#### 🗺️ Surveys by Site")
-        if 'site' in df.columns:
-            site_data = df['site'].value_counts().reset_index()
-            site_data.columns = ['site', 'count']
-            fig_site = px.pie(
-                site_data,
-                values='count',
-                names='site',
-                title="Survey Distribution by Site"
-            )
-            st.plotly_chart(fig_site, use_container_width=True)
-        else:
-            st.info("No site data available")
+    # Charts - Single column layout (not side by side)
+    
+    # Daily submissions chart
+    st.markdown("#### 📈 Daily Survey Submissions")
+    if 'completed_time' in df.columns:
+        daily_data = df.groupby(df['completed_time'].dt.date).size().reset_index(name='count')
+        fig_daily = px.bar(
+            daily_data, 
+            x='completed_time', 
+            y='count',
+            title="Surveys Completed by Day",
+            labels={'completed_time': 'Date', 'count': 'Number of Surveys'},
+            color='count',
+            color_continuous_scale='blues'
+        )
+        fig_daily.update_layout(showlegend=False)
+        st.plotly_chart(fig_daily, use_container_width=True)
+    else:
+        st.info("No completion time data available")
+    
+    # Site distribution
+    st.markdown("#### 🗺️ Surveys by Site")
+    if 'site' in df.columns:
+        site_data = df['site'].value_counts().reset_index()
+        site_data.columns = ['site', 'count']
+        fig_site = px.pie(
+            site_data,
+            values='count',
+            names='site',
+            title="Survey Distribution by Site"
+        )
+        st.plotly_chart(fig_site, use_container_width=True)
+    else:
+        st.info("No site data available")
 
 def create_enumerator_tab(df):
     """Create the enumerator progress tab"""
@@ -723,41 +731,37 @@ def create_enumerator_tab(df):
         
         st.markdown("---")
         
-        # Progress chart
-        col1, col2 = st.columns(2)
+        # Progress chart - Single column layout
+        st.markdown("#### 📊 Progress by Enumerator")
+        # Show top 20 enumerators for better visualization
+        display_data = enum_progress.head(20).copy()
+        fig_enum = px.bar(
+            display_data,
+            x='username',
+            y='progress_pct',
+            title="Progress Percentage by Enumerator (Top 20)",
+            labels={'progress_pct': 'Progress (%)', 'username': 'Enumerator'},
+            color='progress_pct',
+            color_continuous_scale='viridis'
+        )
+        fig_enum.update_layout(xaxis_tickangle=-45, yaxis_range=[0, 100])
+        fig_enum.update_traces(hovertemplate='<b>%{x}</b><br>Progress: %{y:.1f}%<extra></extra>')
+        st.plotly_chart(fig_enum, use_container_width=True)
         
-        with col1:
-            st.markdown("#### 📊 Progress by Enumerator")
-            # Show top 20 enumerators for better visualization
-            display_data = enum_progress.head(20).copy()
-            fig_enum = px.bar(
-                display_data,
-                x='username',
-                y='progress_pct',
-                title="Progress Percentage by Enumerator (Top 20)",
-                labels={'progress_pct': 'Progress (%)', 'username': 'Enumerator'},
-                color='progress_pct',
-                color_continuous_scale='viridis'
-            )
-            fig_enum.update_layout(xaxis_tickangle=-45, yaxis_range=[0, 100])
-            fig_enum.update_traces(hovertemplate='<b>%{x}</b><br>Progress: %{y:.1f}%<extra></extra>')
-            st.plotly_chart(fig_enum, use_container_width=True)
-        
-        with col2:
-            st.markdown("#### 🎯 Surveys Completed")
-            fig_surveys = px.bar(
-                display_data,
-                x='username',
-                y='actual_count',
-                title="Surveys Completed by Enumerator (Top 20)",
-                labels={'actual_count': 'Surveys Completed', 'username': 'Enumerator'},
-                color='actual_count',
-                color_continuous_scale='blues'
-            )
-            fig_surveys.update_layout(xaxis_tickangle=-45)
-            fig_surveys.add_hline(y=190, line_dash="dash", line_color="red", 
-                                annotation_text="Target (190)", annotation_position="top left")
-            st.plotly_chart(fig_surveys, use_container_width=True)
+        st.markdown("#### 🎯 Surveys Completed")
+        fig_surveys = px.bar(
+            display_data,
+            x='username',
+            y='actual_count',
+            title="Surveys Completed by Enumerator (Top 20)",
+            labels={'actual_count': 'Surveys Completed', 'username': 'Enumerator'},
+            color='actual_count',
+            color_continuous_scale='blues'
+        )
+        fig_surveys.update_layout(xaxis_tickangle=-45)
+        fig_surveys.add_hline(y=190, line_dash="dash", line_color="red", 
+                            annotation_text="Target (190)", annotation_position="top left")
+        st.plotly_chart(fig_surveys, use_container_width=True)
         
         # Detailed table
         st.markdown("---")
@@ -812,38 +816,21 @@ def create_species_tab(df):
         
         st.markdown("---")
         
-        # Progress charts
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            # Progress by species and site
-            fig_progress = px.bar(
-                progress_df,
-                x='species',
-                y='progress_pct',
-                color='site',
-                barmode='group',
-                title="Survey Progress by Species and Site (%)",
-                labels={'progress_pct': 'Progress (%)', 'species': 'Species', 'site': 'Site'},
-                text='progress_pct'
-            )
-            fig_progress.update_traces(texttemplate='%{text:.1f}%', textposition='outside')
-            fig_progress.update_layout(yaxis_range=[0, 100])
-            st.plotly_chart(fig_progress, use_container_width=True)
-        
-        with col2:
-            # Actual vs Target by species and site
-            fig_actual = px.bar(
-                progress_df,
-                x='species',
-                y=['actual_count', 'target_sample'],
-                color='site',
-                barmode='group',
-                title="Actual vs Target by Species and Site",
-                labels={'value': 'Number of Surveys', 'species': 'Species', 'variable': 'Type'},
-            )
-            fig_actual.update_layout(legend_title_text='Type')
-            st.plotly_chart(fig_actual, use_container_width=True)
+        # Progress chart - Single column layout
+        st.markdown("#### 📊 Survey Progress by Species and Site (%)")
+        fig_progress = px.bar(
+            progress_df,
+            x='species',
+            y='progress_pct',
+            color='site',
+            barmode='group',
+            title="Survey Progress by Species and Site (%)",
+            labels={'progress_pct': 'Progress (%)', 'species': 'Species', 'site': 'Site'},
+            text='progress_pct'
+        )
+        fig_progress.update_traces(texttemplate='%{text:.1f}%', textposition='outside')
+        fig_progress.update_layout(yaxis_range=[0, 100])
+        st.plotly_chart(fig_progress, use_container_width=True)
         
         # Detailed progress table
         st.markdown("---")
@@ -901,48 +888,44 @@ def create_planting_rate_tab(df):
         
         st.markdown("---")
         
-        # Planting rate by species
-        col1, col2 = st.columns(2)
+        # Planting rate by species - Single column layout
+        st.markdown("#### 📊 Planting Rate by Species")
+        fig_rates = px.bar(
+            planting_rates_df,
+            x='species',
+            y='average_planting_rate',
+            title="Average Planting Rate by Species",
+            labels={'average_planting_rate': 'Planting Rate', 'species': 'Species'},
+            color='average_planting_rate',
+            color_continuous_scale='greens'
+        )
+        fig_rates.update_traces(texttemplate='%{y:.1%}', textposition='outside')
+        fig_rates.update_layout(yaxis_tickformat='.0%')
+        st.plotly_chart(fig_rates, use_container_width=True)
         
-        with col1:
-            st.markdown("#### 📊 Planting Rate by Species")
-            fig_rates = px.bar(
-                planting_rates_df,
-                x='species',
-                y='average_planting_rate',
-                title="Average Planting Rate by Species",
-                labels={'average_planting_rate': 'Planting Rate', 'species': 'Species'},
-                color='average_planting_rate',
-                color_continuous_scale='greens'
-            )
-            fig_rates.update_traces(texttemplate='%{y:.1%}', textposition='outside')
-            fig_rates.update_layout(yaxis_tickformat='.0%')
-            st.plotly_chart(fig_rates, use_container_width=True)
+        st.markdown("#### 📈 Planting Rate Distribution")
+        # Create a box plot-like visualization using scatter plot
+        fig_dist = go.Figure()
         
-        with col2:
-            st.markdown("#### 📈 Planting Rate Distribution")
-            # Create a box plot-like visualization using scatter plot
-            fig_dist = go.Figure()
-            
-            for idx, row in planting_rates_df.iterrows():
-                fig_dist.add_trace(go.Box(
-                    y=[row['min_rate'], row['average_planting_rate'], row['max_rate']],
-                    x=[row['species']] * 3,
-                    name=row['species'],
-                    boxpoints='all',
-                    jitter=0.3,
-                    pointpos=-1.8,
-                    marker=dict(size=8),
-                    line=dict(width=2)
-                ))
-            
-            fig_dist.update_layout(
-                title="Planting Rate Distribution by Species",
-                yaxis_title="Planting Rate",
-                yaxis_tickformat='.0%',
-                showlegend=False
-            )
-            st.plotly_chart(fig_dist, use_container_width=True)
+        for idx, row in planting_rates_df.iterrows():
+            fig_dist.add_trace(go.Box(
+                y=[row['min_rate'], row['average_planting_rate'], row['max_rate']],
+                x=[row['species']] * 3,
+                name=row['species'],
+                boxpoints='all',
+                jitter=0.3,
+                pointpos=-1.8,
+                marker=dict(size=8),
+                line=dict(width=2)
+            ))
+        
+        fig_dist.update_layout(
+            title="Planting Rate Distribution by Species",
+            yaxis_title="Planting Rate",
+            yaxis_tickformat='.0%',
+            showlegend=False
+        )
+        st.plotly_chart(fig_dist, use_container_width=True)
         
         # Detailed planting rate table
         st.markdown("---")
@@ -975,25 +958,6 @@ def create_planting_rate_tab(df):
                 file_name=f"planting_rates_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
                 mime="text/csv"
             )
-        
-        # Recommendations
-        st.markdown("---")
-        st.markdown("#### 💡 Recommendations")
-        
-        low_planting_species = planting_rates_df[planting_rates_df['average_planting_rate'] < 0.5]
-        high_planting_species = planting_rates_df[planting_rates_df['average_planting_rate'] > 0.8]
-        
-        if not low_planting_species.empty:
-            st.warning("**Species with Low Planting Rates (<50%):**")
-            for _, species in low_planting_species.iterrows():
-                st.write(f"- **{species['species']}**: {species['average_planting_rate']:.1%} planting rate")
-                st.write(f"  - Consider additional training or support for {species['species']} cultivation")
-        
-        if not high_planting_species.empty:
-            st.success("**Species with High Planting Rates (>80%):**")
-            for _, species in high_planting_species.iterrows():
-                st.write(f"- **{species['species']}**: {species['average_planting_rate']:.1%} planting rate")
-                st.write(f"  - Good adoption rate, consider expanding distribution")
     
     else:
         st.info("No planting rate data available. Check if species columns are present.")
@@ -1028,37 +992,33 @@ def create_troster_comparison_tab(df):
         
         st.markdown("---")
         
-        # Comparison charts
-        col1, col2 = st.columns(2)
+        # Comparison charts - Single column layout
+        st.markdown("#### 📈 Survey vs Troster Totals")
+        fig_totals = px.bar(
+            summary_df,
+            x='species',
+            y=['total_survey', 'total_troster'],
+            barmode='group',
+            title="Total Seedlings: Survey vs Troster",
+            labels={'value': 'Number of Seedlings', 'species': 'Species', 'variable': 'Data Source'},
+            color_discrete_map={'total_survey': '#1f77b4', 'total_troster': '#ff7f0e'}
+        )
+        st.plotly_chart(fig_totals, use_container_width=True)
         
-        with col1:
-            st.markdown("#### 📈 Survey vs Troster Totals")
-            fig_totals = px.bar(
-                summary_df,
-                x='species',
-                y=['total_survey', 'total_troster'],
-                barmode='group',
-                title="Total Seedlings: Survey vs Troster",
-                labels={'value': 'Number of Seedlings', 'species': 'Species', 'variable': 'Data Source'},
-                color_discrete_map={'total_survey': '#1f77b4', 'total_troster': '#ff7f0e'}
-            )
-            st.plotly_chart(fig_totals, use_container_width=True)
-        
-        with col2:
-            st.markdown("#### 📊 Percentage Difference")
-            fig_diff = px.bar(
-                summary_df,
-                x='species',
-                y='difference_pct',
-                title="Average Percentage Difference by Species",
-                labels={'difference_pct': 'Difference (%)', 'species': 'Species'},
-                color='difference_pct',
-                color_continuous_scale='rdylgn_r'
-            )
-            fig_diff.add_hline(y=25, line_dash="dash", line_color="red", 
-                             annotation_text="25% Threshold", annotation_position="top left")
-            fig_diff.add_hline(y=-25, line_dash="dash", line_color="red")
-            st.plotly_chart(fig_diff, use_container_width=True)
+        st.markdown("#### 📊 Percentage Difference")
+        fig_diff = px.bar(
+            summary_df,
+            x='species',
+            y='difference_pct',
+            title="Average Percentage Difference by Species",
+            labels={'difference_pct': 'Difference (%)', 'species': 'Species'},
+            color='difference_pct',
+            color_continuous_scale='rdylgn_r'
+        )
+        fig_diff.add_hline(y=25, line_dash="dash", line_color="red", 
+                         annotation_text="25% Threshold", annotation_position="top left")
+        fig_diff.add_hline(y=-25, line_dash="dash", line_color="red")
+        st.plotly_chart(fig_diff, use_container_width=True)
         
         # Discrepancies table
         st.markdown("---")
@@ -1124,25 +1084,6 @@ def create_troster_comparison_tab(df):
             ]
             
             st.dataframe(display_summary, use_container_width=True)
-        
-        # Recommendations
-        st.markdown("---")
-        st.markdown("#### 💡 Recommendations")
-        
-        high_discrepancy_species = summary_df[summary_df['difference_pct'].abs() > 25]
-        if not high_discrepancy_species.empty:
-            st.warning("**Species with High Average Discrepancies (>25%):**")
-            for _, species in high_discrepancy_species.iterrows():
-                st.write(f"- **{species['species']}**: {species['difference_pct']:.1f}% average difference")
-                st.write(f"  - Review data collection procedures for {species['species']}")
-                st.write(f"  - Consider additional training for enumerators")
-        
-        if not discrepancies_df.empty:
-            st.info("**Data Quality Actions:**")
-            st.write("- Follow up with enumerators having multiple discrepancies")
-            st.write("- Verify farmer contact information for data validation")
-            st.write("- Consider spot checks for high-discrepancy species")
-            st.write("- Review troster data entry procedures")
     
     else:
         st.info("No troster comparison data available. Check if troster columns are present.")
