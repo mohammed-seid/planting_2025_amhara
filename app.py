@@ -260,23 +260,52 @@ def clean_data(df):
         if col in df_clean.columns:
             df_clean[col] = pd.to_datetime(df_clean[col], errors='coerce')
     
-    # 4. Convert numeric columns
+    # 4. Convert numeric columns and handle NA values for species data
     numeric_columns = ['intro_consent.consent', 'age', 'hh_size', 'land_own_total']
-    # Add species columns
-    species_columns = [
-        'oaf_trees.oaf_gesho.num_planted_private_hid',
-        'oaf_trees.oaf_grev.num_planted_private_hid',
-        'oaf_trees.oaf_dec.num_planted_private_hid',
-        'oaf_trees.oaf_wanza.num_planted_private_hid',
-        'oaf_trees.oaf_papaya.num_planted_private_hid',
-        'oaf_trees.oaf_coffee.num_planted_private_hid',
-        'oaf_trees.oaf_moringa.num_planted_private_hid'
+    
+    # Define species columns for planting analysis
+    species_columns_got = [
+        'oaf_trees.oaf_gesho.num_got',
+        'oaf_trees.oaf_grev.num_got',
+        'oaf_trees.oaf_dec.num_got',
+        'oaf_trees.oaf_wanza.num_got',
+        'oaf_trees.oaf_papaya.num_got',
+        'oaf_trees.oaf_coffee.num_got',
+        'oaf_trees.oaf_moringa.num_got'
     ]
-    numeric_columns.extend(species_columns)
+    
+    species_columns_planted = [
+        'oaf_trees.oaf_gesho.num_planted_private',
+        'oaf_trees.oaf_grev.num_planted_private',
+        'oaf_trees.oaf_dec.num_planted_private',
+        'oaf_trees.oaf_wanza.num_planted_private',
+        'oaf_trees.oaf_papaya.num_planted_private',
+        'oaf_trees.oaf_coffee.num_planted_private',
+        'oaf_trees.oaf_moringa.num_planted_private'
+    ]
+    
+    # Troster columns
+    troster_columns = [
+        'num_oaf_gesho_troster',
+        'num_oaf_grev_troster',
+        'num_oaf_dec_troster',
+        'num_oaf_wanza_troster',
+        'num_oaf_papaya_troster',
+        'num_oaf_coffee_troster',
+        'num_oaf_moringa_troster'
+    ]
+    
+    all_species_columns = species_columns_got + species_columns_planted + troster_columns
+    numeric_columns.extend(all_species_columns)
     
     for col in numeric_columns:
         if col in df_clean.columns:
             df_clean[col] = pd.to_numeric(df_clean[col], errors='coerce')
+    
+    # 5. Replace NA with 0 for specific species columns
+    for col in species_columns_got + species_columns_planted:
+        if col in df_clean.columns:
+            df_clean[col] = df_clean[col].fillna(0)
     
     return df_clean
 
@@ -297,13 +326,13 @@ def calculate_species_progress(df):
     
     # Define species mapping to column names
     species_mapping = {
-        'gesho': 'oaf_trees.oaf_gesho.num_planted_private_hid',
-        'grev': 'oaf_trees.oaf_grev.num_planted_private_hid',
-        'dec': 'oaf_trees.oaf_dec.num_planted_private_hid',
-        'wanza': 'oaf_trees.oaf_wanza.num_planted_private_hid',
-        'papaya': 'oaf_trees.oaf_papaya.num_planted_private_hid',
-        'coffee': 'oaf_trees.oaf_coffee.num_planted_private_hid',
-        'moringa': 'oaf_trees.oaf_moringa.num_planted_private_hid'
+        'gesho': 'oaf_trees.oaf_gesho.num_planted_private',
+        'grev': 'oaf_trees.oaf_grev.num_planted_private',
+        'dec': 'oaf_trees.oaf_dec.num_planted_private',
+        'wanza': 'oaf_trees.oaf_wanza.num_planted_private',
+        'papaya': 'oaf_trees.oaf_papaya.num_planted_private',
+        'coffee': 'oaf_trees.oaf_coffee.num_planted_private',
+        'moringa': 'oaf_trees.oaf_moringa.num_planted_private'
     }
     
     target_df = get_target_sample_data()
@@ -360,6 +389,165 @@ def calculate_enumerator_progress(df):
     enumerator_data = enumerator_data.sort_values('actual_count', ascending=False)
     
     return enumerator_data
+
+def calculate_planting_rates(df):
+    """Calculate planting rates for each species"""
+    
+    species_mapping = {
+        'gesho': {
+            'got': 'oaf_trees.oaf_gesho.num_got',
+            'planted': 'oaf_trees.oaf_gesho.num_planted_private'
+        },
+        'grev': {
+            'got': 'oaf_trees.oaf_grev.num_got',
+            'planted': 'oaf_trees.oaf_grev.num_planted_private'
+        },
+        'dec': {
+            'got': 'oaf_trees.oaf_dec.num_got',
+            'planted': 'oaf_trees.oaf_dec.num_planted_private'
+        },
+        'wanza': {
+            'got': 'oaf_trees.oaf_wanza.num_got',
+            'planted': 'oaf_trees.oaf_wanza.num_planted_private'
+        },
+        'papaya': {
+            'got': 'oaf_trees.oaf_papaya.num_got',
+            'planted': 'oaf_trees.oaf_papaya.num_planted_private'
+        },
+        'coffee': {
+            'got': 'oaf_trees.oaf_coffee.num_got',
+            'planted': 'oaf_trees.oaf_coffee.num_planted_private'
+        },
+        'moringa': {
+            'got': 'oaf_trees.oaf_moringa.num_got',
+            'planted': 'oaf_trees.oaf_moringa.num_planted_private'
+        }
+    }
+    
+    planting_data = []
+    
+    for species, columns in species_mapping.items():
+        got_col = columns['got']
+        planted_col = columns['planted']
+        
+        if got_col in df.columns and planted_col in df.columns:
+            # Filter out rows where both are 0 (no data)
+            valid_data = df[(df[got_col] > 0) | (df[planted_col] > 0)]
+            
+            if len(valid_data) > 0:
+                # Calculate planting rate for each observation
+                planting_rates = []
+                total_got = 0
+                total_planted = 0
+                
+                for idx, row in valid_data.iterrows():
+                    got = row[got_col]
+                    planted = row[planted_col]
+                    
+                    if got > 0:
+                        planting_rate = planted / got
+                        planting_rates.append(planting_rate)
+                        total_got += got
+                        total_planted += planted
+                
+                if len(planting_rates) > 0:
+                    avg_planting_rate = np.mean(planting_rates)
+                    overall_planting_rate = total_planted / total_got if total_got > 0 else 0
+                    
+                    planting_data.append({
+                        'species': species,
+                        'average_planting_rate': avg_planting_rate,
+                        'overall_planting_rate': overall_planting_rate,
+                        'total_got': total_got,
+                        'total_planted': total_planted,
+                        'observations': len(planting_rates),
+                        'min_rate': np.min(planting_rates),
+                        'max_rate': np.max(planting_rates),
+                        'std_rate': np.std(planting_rates)
+                    })
+    
+    return pd.DataFrame(planting_data)
+
+def compare_with_troster(df):
+    """Compare survey data with troster data"""
+    
+    species_mapping = {
+        'gesho': {
+            'survey': 'oaf_trees.oaf_gesho.num_got',
+            'troster': 'num_oaf_gesho_troster'
+        },
+        'grev': {
+            'survey': 'oaf_trees.oaf_grev.num_got',
+            'troster': 'num_oaf_grev_troster'
+        },
+        'dec': {
+            'survey': 'oaf_trees.oaf_dec.num_got',
+            'troster': 'num_oaf_dec_troster'
+        },
+        'wanza': {
+            'survey': 'oaf_trees.oaf_wanza.num_got',
+            'troster': 'num_oaf_wanza_troster'
+        },
+        'papaya': {
+            'survey': 'oaf_trees.oaf_papaya.num_got',
+            'troster': 'num_oaf_papaya_troster'
+        },
+        'coffee': {
+            'survey': 'oaf_trees.oaf_coffee.num_got',
+            'troster': 'num_oaf_coffee_troster'
+        },
+        'moringa': {
+            'survey': 'oaf_trees.oaf_moringa.num_got',
+            'troster': 'num_oaf_moringa_troster'
+        }
+    }
+    
+    discrepancies = []
+    summary_data = []
+    
+    for species, columns in species_mapping.items():
+        survey_col = columns['survey']
+        troster_col = columns['troster']
+        
+        if survey_col in df.columns and troster_col in df.columns:
+            # Filter valid comparisons
+            valid_data = df[(df[survey_col].notna()) & (df[troster_col].notna()) & 
+                           ((df[survey_col] > 0) | (df[troster_col] > 0))]
+            
+            if len(valid_data) > 0:
+                total_survey = valid_data[survey_col].sum()
+                total_troster = valid_data[troster_col].sum()
+                avg_difference = ((valid_data[survey_col] - valid_data[troster_col]) / valid_data[troster_col]).mean() * 100
+                
+                summary_data.append({
+                    'species': species,
+                    'total_survey': total_survey,
+                    'total_troster': total_troster,
+                    'difference_pct': avg_difference,
+                    'comparisons': len(valid_data)
+                })
+                
+                # Find individual discrepancies > 25%
+                for idx, row in valid_data.iterrows():
+                    survey_val = row[survey_col]
+                    troster_val = row[troster_col]
+                    
+                    if troster_val > 0:  # Avoid division by zero
+                        difference_pct = abs(survey_val - troster_val) / troster_val * 100
+                        
+                        if difference_pct > 25:
+                            discrepancies.append({
+                                'username': row.get('username', 'N/A'),
+                                'farmer_name': row.get('farmer_name', 'N/A'),
+                                'phone_no': row.get('phone_no', 'N/A'),
+                                'species': species,
+                                'survey_value': survey_val,
+                                'troster_value': troster_val,
+                                'difference_pct': difference_pct,
+                                'site': row.get('site', 'N/A')
+                            })
+    
+    return pd.DataFrame(discrepancies), pd.DataFrame(summary_data)
 
 def create_overview_tab(df):
     """Create the overview tab with overall summary"""
@@ -683,6 +871,282 @@ def create_species_tab(df):
     else:
         st.info("No species progress data available. Check if site and species columns are present.")
 
+def create_planting_rate_tab(df):
+    """Create the planting rate analysis tab"""
+    
+    st.markdown("### 🌱 Planting Rate Analysis")
+    
+    # Calculate planting rates
+    planting_rates_df = calculate_planting_rates(df)
+    
+    if not planting_rates_df.empty:
+        # Overall metrics
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            avg_overall_rate = planting_rates_df['average_planting_rate'].mean()
+            st.metric("Average Planting Rate", f"{avg_overall_rate:.1%}")
+        
+        with col2:
+            total_planted = planting_rates_df['total_planted'].sum()
+            st.metric("Total Planted", f"{total_planted:,}")
+        
+        with col3:
+            total_got = planting_rates_df['total_got'].sum()
+            st.metric("Total Received", f"{total_got:,}")
+        
+        with col4:
+            overall_rate = total_planted / total_got if total_got > 0 else 0
+            st.metric("Overall Planting Rate", f"{overall_rate:.1%}")
+        
+        st.markdown("---")
+        
+        # Planting rate by species
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("#### 📊 Planting Rate by Species")
+            fig_rates = px.bar(
+                planting_rates_df,
+                x='species',
+                y='average_planting_rate',
+                title="Average Planting Rate by Species",
+                labels={'average_planting_rate': 'Planting Rate', 'species': 'Species'},
+                color='average_planting_rate',
+                color_continuous_scale='greens'
+            )
+            fig_rates.update_traces(texttemplate='%{y:.1%}', textposition='outside')
+            fig_rates.update_layout(yaxis_tickformat='.0%')
+            st.plotly_chart(fig_rates, use_container_width=True)
+        
+        with col2:
+            st.markdown("#### 📈 Planting Rate Distribution")
+            # Create a box plot-like visualization using scatter plot
+            fig_dist = go.Figure()
+            
+            for idx, row in planting_rates_df.iterrows():
+                fig_dist.add_trace(go.Box(
+                    y=[row['min_rate'], row['average_planting_rate'], row['max_rate']],
+                    x=[row['species']] * 3,
+                    name=row['species'],
+                    boxpoints='all',
+                    jitter=0.3,
+                    pointpos=-1.8,
+                    marker=dict(size=8),
+                    line=dict(width=2)
+                ))
+            
+            fig_dist.update_layout(
+                title="Planting Rate Distribution by Species",
+                yaxis_title="Planting Rate",
+                yaxis_tickformat='.0%',
+                showlegend=False
+            )
+            st.plotly_chart(fig_dist, use_container_width=True)
+        
+        # Detailed planting rate table
+        st.markdown("---")
+        st.markdown("#### 📋 Detailed Planting Rate Analysis")
+        
+        with st.expander("View Detailed Planting Data", expanded=True):
+            display_df = planting_rates_df.copy()
+            display_df['Average Rate'] = (display_df['average_planting_rate'] * 100).round(1).astype(str) + '%'
+            display_df['Overall Rate'] = (display_df['overall_planting_rate'] * 100).round(1).astype(str) + '%'
+            display_df['Min Rate'] = (display_df['min_rate'] * 100).round(1).astype(str) + '%'
+            display_df['Max Rate'] = (display_df['max_rate'] * 100).round(1).astype(str) + '%'
+            display_df['Std Dev'] = (display_df['std_rate'] * 100).round(1).astype(str) + '%'
+            
+            display_df = display_df[[
+                'species', 'Average Rate', 'Overall Rate', 'Min Rate', 'Max Rate', 'Std Dev',
+                'total_got', 'total_planted', 'observations'
+            ]]
+            display_df.columns = [
+                'Species', 'Avg Rate', 'Overall Rate', 'Min Rate', 'Max Rate', 'Std Dev',
+                'Total Received', 'Total Planted', 'Observations'
+            ]
+            
+            st.dataframe(display_df, use_container_width=True)
+            
+            # Download planting rate data
+            csv = planting_rates_df.to_csv(index=False)
+            st.download_button(
+                label="⬇️ Download Planting Rate Data",
+                data=csv,
+                file_name=f"planting_rates_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv"
+            )
+        
+        # Recommendations
+        st.markdown("---")
+        st.markdown("#### 💡 Recommendations")
+        
+        low_planting_species = planting_rates_df[planting_rates_df['average_planting_rate'] < 0.5]
+        high_planting_species = planting_rates_df[planting_rates_df['average_planting_rate'] > 0.8]
+        
+        if not low_planting_species.empty:
+            st.warning("**Species with Low Planting Rates (<50%):**")
+            for _, species in low_planting_species.iterrows():
+                st.write(f"- **{species['species']}**: {species['average_planting_rate']:.1%} planting rate")
+                st.write(f"  - Consider additional training or support for {species['species']} cultivation")
+        
+        if not high_planting_species.empty:
+            st.success("**Species with High Planting Rates (>80%):**")
+            for _, species in high_planting_species.iterrows():
+                st.write(f"- **{species['species']}**: {species['average_planting_rate']:.1%} planting rate")
+                st.write(f"  - Good adoption rate, consider expanding distribution")
+    
+    else:
+        st.info("No planting rate data available. Check if species columns are present.")
+
+def create_troster_comparison_tab(df):
+    """Create the troster comparison tab"""
+    
+    st.markdown("### 📊 Survey vs Troster Data Comparison")
+    
+    # Calculate troster comparisons
+    discrepancies_df, summary_df = compare_with_troster(df)
+    
+    if not summary_df.empty:
+        # Overall comparison metrics
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            total_discrepancies = len(discrepancies_df)
+            st.metric("Total Discrepancies", f"{total_discrepancies:,}")
+        
+        with col2:
+            avg_difference = summary_df['difference_pct'].abs().mean()
+            st.metric("Avg Difference", f"{avg_difference:.1f}%")
+        
+        with col3:
+            total_survey = summary_df['total_survey'].sum()
+            st.metric("Total Survey", f"{total_survey:,}")
+        
+        with col4:
+            total_troster = summary_df['total_troster'].sum()
+            st.metric("Total Troster", f"{total_troster:,}")
+        
+        st.markdown("---")
+        
+        # Comparison charts
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("#### 📈 Survey vs Troster Totals")
+            fig_totals = px.bar(
+                summary_df,
+                x='species',
+                y=['total_survey', 'total_troster'],
+                barmode='group',
+                title="Total Seedlings: Survey vs Troster",
+                labels={'value': 'Number of Seedlings', 'species': 'Species', 'variable': 'Data Source'},
+                color_discrete_map={'total_survey': '#1f77b4', 'total_troster': '#ff7f0e'}
+            )
+            st.plotly_chart(fig_totals, use_container_width=True)
+        
+        with col2:
+            st.markdown("#### 📊 Percentage Difference")
+            fig_diff = px.bar(
+                summary_df,
+                x='species',
+                y='difference_pct',
+                title="Average Percentage Difference by Species",
+                labels={'difference_pct': 'Difference (%)', 'species': 'Species'},
+                color='difference_pct',
+                color_continuous_scale='rdylgn_r'
+            )
+            fig_diff.add_hline(y=25, line_dash="dash", line_color="red", 
+                             annotation_text="25% Threshold", annotation_position="top left")
+            fig_diff.add_hline(y=-25, line_dash="dash", line_color="red")
+            st.plotly_chart(fig_diff, use_container_width=True)
+        
+        # Discrepancies table
+        st.markdown("---")
+        st.markdown("#### ⚠️ Significant Discrepancies (>25% Difference)")
+        
+        if not discrepancies_df.empty:
+            st.warning(f"Found {len(discrepancies_df)} records with >25% difference between survey and troster data")
+            
+            with st.expander("View All Discrepancies", expanded=True):
+                display_df = discrepancies_df.copy()
+                display_df['Difference'] = display_df['difference_pct'].round(1).astype(str) + '%'
+                display_df = display_df[[
+                    'username', 'farmer_name', 'phone_no', 'species', 'site',
+                    'survey_value', 'troster_value', 'Difference'
+                ]]
+                display_df.columns = [
+                    'Enumerator', 'Farmer Name', 'Phone', 'Species', 'Site',
+                    'Survey Value', 'Troster Value', 'Difference (%)'
+                ]
+                
+                st.dataframe(display_df, use_container_width=True, height=400)
+                
+                # Download discrepancies data
+                csv = discrepancies_df.to_csv(index=False)
+                st.download_button(
+                    label="⬇️ Download Discrepancies Data",
+                    data=csv,
+                    file_name=f"troster_discrepancies_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    mime="text/csv"
+                )
+            
+            # Enumerator analysis
+            st.markdown("#### 👥 Enumerator Discrepancy Analysis")
+            enum_analysis = discrepancies_df['username'].value_counts().reset_index()
+            enum_analysis.columns = ['username', 'discrepancy_count']
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("**Top Enumerators with Discrepancies:**")
+                st.dataframe(enum_analysis.head(10), use_container_width=True)
+            
+            with col2:
+                st.markdown("**Species with Most Discrepancies:**")
+                species_analysis = discrepancies_df['species'].value_counts().reset_index()
+                species_analysis.columns = ['species', 'discrepancy_count']
+                st.dataframe(species_analysis, use_container_width=True)
+        else:
+            st.success("✅ No significant discrepancies found (>25% difference)")
+        
+        # Summary table
+        st.markdown("---")
+        st.markdown("#### 📋 Comparison Summary by Species")
+        
+        with st.expander("View Comparison Summary", expanded=True):
+            display_summary = summary_df.copy()
+            display_summary['Difference (%)'] = display_summary['difference_pct'].round(1).astype(str) + '%'
+            display_summary = display_summary[[
+                'species', 'total_survey', 'total_troster', 'Difference (%)', 'comparisons'
+            ]]
+            display_summary.columns = [
+                'Species', 'Survey Total', 'Troster Total', 'Avg Difference (%)', 'Valid Comparisons'
+            ]
+            
+            st.dataframe(display_summary, use_container_width=True)
+        
+        # Recommendations
+        st.markdown("---")
+        st.markdown("#### 💡 Recommendations")
+        
+        high_discrepancy_species = summary_df[summary_df['difference_pct'].abs() > 25]
+        if not high_discrepancy_species.empty:
+            st.warning("**Species with High Average Discrepancies (>25%):**")
+            for _, species in high_discrepancy_species.iterrows():
+                st.write(f"- **{species['species']}**: {species['difference_pct']:.1f}% average difference")
+                st.write(f"  - Review data collection procedures for {species['species']}")
+                st.write(f"  - Consider additional training for enumerators")
+        
+        if not discrepancies_df.empty:
+            st.info("**Data Quality Actions:**")
+            st.write("- Follow up with enumerators having multiple discrepancies")
+            st.write("- Verify farmer contact information for data validation")
+            st.write("- Consider spot checks for high-discrepancy species")
+            st.write("- Review troster data entry procedures")
+    
+    else:
+        st.info("No troster comparison data available. Check if troster columns are present.")
+
 def create_data_tab(df):
     """Create the data exploration tab"""
     
@@ -844,7 +1308,10 @@ def main():
         df = st.session_state['filtered_df']
         
         # Create tabs
-        tab1, tab2, tab3, tab4 = st.tabs(["📊 Overview", "👥 Enumerator Progress", "🌱 Species Progress", "🔍 Data Explorer"])
+        tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+            "📊 Overview", "👥 Enumerator Progress", "🌱 Species Progress", 
+            "🌿 Planting Rates", "📈 Troster Comparison", "🔍 Data Explorer"
+        ])
         
         with tab1:
             create_overview_tab(df)
@@ -856,6 +1323,12 @@ def main():
             create_species_tab(df)
         
         with tab4:
+            create_planting_rate_tab(df)
+        
+        with tab5:
+            create_troster_comparison_tab(df)
+        
+        with tab6:
             create_data_tab(df)
     
     else:
