@@ -9,19 +9,20 @@ from requests.auth import HTTPBasicAuth
 import requests
 import time
 import io
+import base64
 
 # Page configuration
 st.set_page_config(
-    page_title="ETH 2025 Planting Survey Dashboard",
+    page_title="ET 2025 Amhara Planting Survey Dashboard",
     page_icon="🌳",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Enhanced Custom CSS for modern look
+# One Acre Fund Branded CSS
 st.markdown("""
     <style>
-    /* Main container styling */
+    /* Main container styling - OAF Colors */
     .main .block-container {
         padding-top: 2rem;
         padding-bottom: 2rem;
@@ -29,48 +30,59 @@ st.markdown("""
         padding-right: 2rem;
     }
     
-    /* Metrics styling */
+    /* OAF Color Scheme */
+    :root {
+        --oaf-green: #2E8B57;
+        --oaf-dark-green: #1e5631;
+        --oaf-light-green: #4CAF50;
+        --oaf-orange: #FF6B35;
+        --oaf-blue: #1E88E5;
+        --oaf-dark-blue: #0D47A1;
+    }
+    
+    /* Metrics styling - OAF Theme */
     .stMetric {
-        background-color: #f0f2f6;
+        background-color: #f8fff9;
         padding: 15px;
         border-radius: 10px;
+        border-left: 4px solid #2E8B57;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
     
     .stMetric > label {
-        color: #1f77b4;
-        font-size: 16px;
+        color: #1e5631;
+        font-size: 14px;
         font-weight: 600;
     }
     
     .stMetric > div > div > div {
         font-size: 28px;
         font-weight: 700;
-        color: #2e7d32;
+        color: #2E8B57;
     }
     
     /* Header styling */
     h1 {
-        color: #1e3a8a;
+        color: #1e5631;
         font-weight: 700;
         padding-bottom: 0.5rem;
-        border-bottom: 3px solid #3b82f6;
+        border-bottom: 3px solid #2E8B57;
     }
     
     h2 {
-        color: #1e40af;
+        color: #1e5631;
         font-weight: 600;
         margin-top: 1.5rem;
     }
     
     h3 {
-        color: #1e40af;
+        color: #1e5631;
         font-weight: 500;
     }
     
-    /* Button styling */
+    /* Button styling - OAF Green */
     .stButton > button {
-        background: linear-gradient(90deg, #3b82f6 0%, #2563eb 100%);
+        background: linear-gradient(90deg, #2E8B57 0%, #1e5631 100%);
         color: white;
         border-radius: 8px;
         padding: 0.5rem 2rem;
@@ -83,11 +95,12 @@ st.markdown("""
     .stButton > button:hover {
         box-shadow: 0 6px 12px rgba(0,0,0,0.15);
         transform: translateY(-2px);
+        background: linear-gradient(90deg, #1e5631 0%, #2E8B57 100%);
     }
     
     /* Info box styling */
     .info-box {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #2E8B57 0%, #1e5631 100%);
         padding: 20px;
         border-radius: 10px;
         color: white;
@@ -99,13 +112,13 @@ st.markdown("""
         background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
         padding: 15px;
         border-radius: 10px;
-        color: #1e3a8a;
+        color: #1e5631;
         margin: 10px 0;
     }
     
     /* Sidebar styling */
     .css-1d391kg {
-        background-color: #f8fafc;
+        background-color: #f8fff9;
     }
     
     /* Expander styling */
@@ -113,11 +126,12 @@ st.markdown("""
         background-color: #f0f2f6;
         border-radius: 8px;
         font-weight: 600;
+        border-left: 3px solid #2E8B57;
     }
     
     /* Progress bar */
     .stProgress > div > div > div > div {
-        background-color: #3b82f6;
+        background-color: #2E8B57;
     }
     
     /* Dataframe styling */
@@ -128,7 +142,7 @@ st.markdown("""
     
     /* Custom progress colors */
     .progress-high {
-        background-color: #10b981;
+        background-color: #2E8B57;
         color: white;
         padding: 4px 8px;
         border-radius: 4px;
@@ -137,7 +151,7 @@ st.markdown("""
     }
     
     .progress-medium {
-        background-color: #f59e0b;
+        background-color: #FF6B35;
         color: white;
         padding: 4px 8px;
         border-radius: 4px;
@@ -152,6 +166,32 @@ st.markdown("""
         border-radius: 4px;
         font-weight: bold;
         text-align: center;
+    }
+    
+    /* Tab styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 2px;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        background-color: #f8fff9;
+        border-radius: 8px 8px 0px 0px;
+        padding: 10px 20px;
+        font-weight: 600;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        background-color: #2E8B57;
+        color: white;
+    }
+    
+    /* Logo header styling */
+    .logo-header {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        padding: 10px 0;
+        margin-bottom: 20px;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -174,8 +214,8 @@ def check_password():
     # Custom login screen
     st.markdown("""
         <div style='text-align: center; padding: 50px;'>
-            <h1 style='color: #1e3a8a; font-size: 3rem;'>🌳</h1>
-            <h2 style='color: #1e3a8a;'>ETH 2025 Planting Survey Dashboard</h2>
+            <h1 style='color: #1e5631; font-size: 3rem;'>🌳</h1>
+            <h2 style='color: #1e5631;'>ET 2025 Amhara Planting Survey Dashboard</h2>
             <p style='color: #64748b; font-size: 1.1rem;'>Please enter your password to access the dashboard</p>
         </div>
     """, unsafe_allow_html=True)
@@ -196,6 +236,18 @@ def check_password():
 
 if not check_password():
     st.stop()
+
+def load_logo():
+    """Load OAF logo"""
+    try:
+        # Try to load the logo from file
+        with open("oaf.png", "rb") as f:
+            logo_bytes = f.read()
+        logo_base64 = base64.b64encode(logo_bytes).decode()
+        return f"data:image/png;base64,{logo_base64}"
+    except:
+        # Return placeholder if logo not found
+        return None
 
 def fetch_commcare_data():
     """Fetch data from CommCare API with pagination"""
@@ -271,7 +323,7 @@ def fetch_commcare_data():
     return all_records
 
 def clean_data(df):
-    """Clean and preprocess the data"""
+    """Clean and preprocess the data with gender validation"""
     
     # Create a copy to avoid modifying the original
     df_clean = df.copy()
@@ -287,7 +339,7 @@ def clean_data(df):
     if 'username' in df_clean.columns:
         df_clean = df_clean[~df_clean['username'].str.lower().isin(test_users)]
     
-        # 4. Filter only consented data (intro_consent.consent == 1)
+    # 4. Filter only consented data (intro_consent.consent == 1)
     if 'intro_consent.consent' in df_clean.columns:
         # Convert to numeric to handle any string values
         df_clean['intro_consent.consent'] = pd.to_numeric(df_clean['intro_consent.consent'], errors='coerce')
@@ -296,15 +348,26 @@ def clean_data(df):
         st.info(f"✅ Filtered to {len(df_clean)} consented surveys (intro_consent.consent == 1)")
     else:
         st.warning("⚠️ 'intro_consent.consent' column not found. Using all data without consent filtering.")
+    
+    # 5. NEW: Filter out records with missing gender data (demo.gender)
+    if 'demo.gender' in df_clean.columns:
+        initial_count = len(df_clean)
+        df_clean = df_clean.dropna(subset=['demo.gender'])
+        removed_count = initial_count - len(df_clean)
+        if removed_count > 0:
+            st.info(f"✅ Removed {removed_count} records with missing gender data")
+            st.info(f"📊 Final cleaned dataset: {len(df_clean)} records")
+    else:
+        st.warning("⚠️ 'demo.gender' column not found in dataset")
         
-    # 4. Convert date columns to datetime
+    # 6. Convert date columns to datetime
     date_columns = ['completed_time', 'started_time', 'received_on']
     for col in date_columns:
         if col in df_clean.columns:
             df_clean[col] = pd.to_datetime(df_clean[col], errors='coerce')
     
-    # 5. Convert numeric columns and handle NA values for species data
-    numeric_columns = ['intro_consent.consent', 'age', 'hh_size', 'land_own_total']
+    # 7. Convert numeric columns and handle NA values for species data
+    numeric_columns = ['intro_consent.consent', 'demo.age', 'demo.hh_size', 'asset.land_own_total']
     
     # Define species columns for planting analysis
     species_columns_got = [
@@ -345,7 +408,7 @@ def clean_data(df):
         if col in df_clean.columns:
             df_clean[col] = pd.to_numeric(df_clean[col], errors='coerce')
     
-    # 6. Replace NA with 0 for specific species columns
+    # 8. Replace NA with 0 for specific species columns
     for col in species_columns_got + species_columns_planted:
         if col in df_clean.columns:
             df_clean[col] = df_clean[col].fillna(0)
@@ -675,46 +738,56 @@ def compare_with_troster(df):
     return pd.DataFrame(discrepancies), pd.DataFrame(summary_data)
 
 def analyze_demographics(df):
-    """Analyze demographic variables (columns starting with 'demo.')"""
+    """Analyze demographic variables"""
     
-    # Find all demographic columns
-    demo_columns = [col for col in df.columns if col.startswith('demo.')]
-    
-    if not demo_columns:
-        return None
-    
-    demographic_data = {}
+    # Find key demographic columns
+    demo_columns = ['demo.age', 'demo.hh_size', 'asset.land_own_total']
+    demo_data = {}
     
     for col in demo_columns:
-        # Clean column name for display
-        clean_name = col.replace('demo.', '').replace('_', ' ').title()
-        
-        # Basic statistics for numeric columns
-        if pd.api.types.is_numeric_dtype(df[col]):
-            demo_stats = {
-                'type': 'numeric',
-                'count': df[col].count(),
-                'mean': df[col].mean(),
-                'median': df[col].median(),
-                'std': df[col].std(),
-                'min': df[col].min(),
-                'max': df[col].max(),
-                'missing': df[col].isna().sum()
-            }
-        else:
-            # For categorical columns
-            value_counts = df[col].value_counts().head(10)  # Top 10 values
-            demo_stats = {
-                'type': 'categorical',
-                'count': df[col].count(),
-                'unique_values': df[col].nunique(),
-                'top_values': value_counts.to_dict(),
-                'missing': df[col].isna().sum()
-            }
-        
-        demographic_data[clean_name] = demo_stats
+        if col in df.columns:
+            if pd.api.types.is_numeric_dtype(df[col]):
+                demo_stats = {
+                    'type': 'numeric',
+                    'count': df[col].count(),
+                    'mean': df[col].mean(),
+                    'median': df[col].median(),
+                    'std': df[col].std(),
+                    'min': df[col].min(),
+                    'max': df[col].max(),
+                    'missing': df[col].isna().sum()
+                }
+                demo_data[col] = demo_stats
     
-    return demographic_data
+    return demo_data
+
+def analyze_hh_characteristics(df):
+    """Analyze household characteristics"""
+    
+    hh_data = {}
+    
+    # Gender analysis
+    if 'demo.gender' in df.columns:
+        hh_data['gender'] = df['demo.gender'].value_counts().to_dict()
+    
+    # Site distribution
+    if 'site' in df.columns:
+        hh_data['site'] = df['site'].value_counts().to_dict()
+    
+    # Treatment distribution
+    if 'treatment' in df.columns:
+        hh_data['treatment'] = df['treatment'].value_counts().to_dict()
+    
+    return hh_data
+
+def calculate_survival_rates(df):
+    """Calculate early survival rates (placeholder function)"""
+    # This is a placeholder - you can implement actual survival rate calculation
+    return pd.DataFrame({
+        'species': ['gesho', 'grev', 'dec', 'wanza', 'papaya', 'coffee', 'moringa'],
+        'survival_rate': [0.85, 0.78, 0.92, 0.81, 0.88, 0.79, 0.86],
+        'observations': [100, 150, 80, 120, 90, 110, 95]
+    })
 
 def create_overview_tab(df):
     """Create the overview tab with overall summary"""
@@ -722,9 +795,8 @@ def create_overview_tab(df):
     st.markdown("### 📊 Overall Survey Summary")
     
     # Value boxes
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     
-       
     with col1:
         # Count consent = 1 with progress percentage
         if 'intro_consent.consent' in df.columns:
@@ -747,14 +819,9 @@ def create_overview_tab(df):
         # Enumerator progress summary
         if 'username' in df.columns:
             unique_enumerators = df['username'].nunique()
-            total_consented = df[df['intro_consent.consent'] == 1].shape[0] if 'intro_consent.consent' in df.columns else len(df)
-            enumerator_target_total = unique_enumerators * 190
-            enumerator_progress = (total_consented / enumerator_target_total * 100) if enumerator_target_total > 0 else 0
-            
             st.metric(
-                label="👥 Enumerator Progress", 
-                value=f"{unique_enumerators} enum.",
-                delta=f"{enumerator_progress:.1f}% overall"
+                label="👥 Active Enumerators", 
+                value=f"{unique_enumerators}",
             )
         else:
             st.metric(
@@ -764,237 +831,190 @@ def create_overview_tab(df):
             )
     
     with col3:
-        # Calculate days remaining until October 20, 2025
-        target_date = datetime(2025, 10, 20)
-        today = datetime.now()
-        days_remaining = (today - target_date).days
-        
-        st.metric(
-            label="📅 Survey Days", 
-            value=f"{days_remaining} days"
-        )
+        # Species coverage
+        species_progress = calculate_species_progress(df)
+        if not species_progress.empty:
+            completed_species = species_progress[species_progress['progress_pct'] >= 100].shape[0]
+            st.metric(
+                label="🌱 Completed Species", 
+                value=f"{completed_species}/{len(species_progress)}"
+            )
+        else:
+            st.metric(
+                label="🌱 Species Progress", 
+                value="N/A"
+            )
+    
+    with col4:
+        # Data quality indicator
+        if 'intro_consent.consent' in df.columns:
+            quality_rate = (df[df['intro_consent.consent'] == 1].shape[0] / len(df) * 100) if len(df) > 0 else 0
+            st.metric(
+                label="📈 Data Quality Score", 
+                value=f"{quality_rate:.1f}%"
+            )
+        else:
+            st.metric(
+                label="📈 Data Quality", 
+                value="N/A"
+            )
     
     st.markdown("---")
     
-    # Quick progress overview - Single column layout
-    st.markdown("#### 👥 Enumerator Progress Overview")
-    if 'username' in df.columns:
+    # Quick progress charts
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("#### 📈 Daily Survey Submissions")
+        if 'completed_time' in df.columns:
+            daily_data = df.groupby(df['completed_time'].dt.date).size().reset_index(name='count')
+            fig_daily = px.line(
+                daily_data, 
+                x='completed_time', 
+                y='count',
+                title="Surveys Completed by Day",
+                labels={'completed_time': 'Date', 'count': 'Number of Surveys'},
+                color_discrete_sequence=['#2E8B57']
+            )
+            fig_daily.update_traces(mode='lines+markers')
+            st.plotly_chart(fig_daily, use_container_width=True)
+        else:
+            st.info("No completion time data available")
+    
+    with col2:
+        st.markdown("#### 👥 Enumerator Progress Overview")
         enum_progress = calculate_enumerator_progress(df)
         if not enum_progress.empty:
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                avg_progress = enum_progress['progress_pct'].mean()
-                st.metric("Average Progress", f"{avg_progress:.1f}%")
-            
-            with col2:
-                max_progress = enum_progress['progress_pct'].max()
-                st.metric("Highest Progress", f"{max_progress:.1f}%")
-            
-            with col3:
-                min_progress = enum_progress['progress_pct'].min()
-                st.metric("Lowest Progress", f"{min_progress:.1f}%")
+            fig_enum = px.box(
+                enum_progress, 
+                y='progress_pct',
+                title="Enumerator Progress Distribution",
+                labels={'progress_pct': 'Progress (%)'},
+                color_discrete_sequence=['#FF6B35']
+            )
+            st.plotly_chart(fig_enum, use_container_width=True)
         else:
             st.info("No enumerator data available")
-    else:
-        st.info("No username column found")
-    
-    st.markdown("---")
-    
-    # Species quick overview
-    st.markdown("#### 🌱 Species Progress Overview")
-    species_progress = calculate_species_progress(df)
-    if not species_progress.empty:
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            avg_species_progress = species_progress['progress_pct'].mean()
-            st.metric("Average Species Progress", f"{avg_species_progress:.1f}%")
-        
-        with col2:
-            max_species_progress = species_progress['progress_pct'].max()
-            st.metric("Highest Species Progress", f"{max_species_progress:.1f}%")
-        
-        with col3:
-            completed_species = species_progress[species_progress['progress_pct'] >= 100].shape[0]
-            st.metric("Completed Species Targets", f"{completed_species}/{len(species_progress)}")
-    else:
-        st.info("No species progress data available")
-    
-    st.markdown("---")
-    
-    # Daily submissions chart - Fixed to show per day
-    st.markdown("#### 📈 Daily Survey Submissions")
-    if 'completed_time' in df.columns:
-        # Extract date only (remove time component)
-        daily_data = df.groupby(df['completed_time'].dt.date).size().reset_index(name='count')
-        fig_daily = px.bar(
-            daily_data, 
-            x='completed_time', 
-            y='count',
-            title="Surveys Completed by Day",
-            labels={'completed_time': 'Date', 'count': 'Number of Surveys'},
-            color='count',
-            color_continuous_scale='blues'
-        )
-        fig_daily.update_layout(showlegend=False)
-        st.plotly_chart(fig_daily, use_container_width=True)
-    else:
-        st.info("No completion time data available")
 
-def create_enumerator_tab(df):
-    """Create the enumerator progress tab"""
+def create_progress_tab(df):
+    """Create combined progress tab with enumerator and species progress"""
     
-    st.markdown("### 👥 Enumerator Progress")
+    tab1, tab2 = st.tabs(["👥 Enumerator Progress", "🌱 Species Progress"])
     
-    # Calculate enumerator progress
-    enum_progress = calculate_enumerator_progress(df)
+    with tab1:
+        st.markdown("### 👥 Enumerator Progress Tracking")
+        
+        enum_progress = calculate_enumerator_progress(df)
+        
+        if not enum_progress.empty:
+            # Overall metrics
+            col1, col2, col3, col4 = st.columns(4)
+            
+            total_enum = len(enum_progress)
+            total_surveys = enum_progress['actual_count'].sum()
+            target_total = total_enum * 190
+            overall_progress = (total_surveys / target_total * 100) if target_total > 0 else 0
+            
+            with col1:
+                st.metric("Total Enumerators", total_enum)
+            with col2:
+                st.metric("Total Surveys", f"{total_surveys:,}")
+            with col3:
+                st.metric("Target Total", f"{target_total:,}")
+            with col4:
+                st.metric("Overall Progress", f"{overall_progress:.1f}%")
+            
+            st.markdown("---")
+            
+            # Progress charts
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Top 20 enumerators progress
+                top_enum = enum_progress.head(20)
+                fig_progress = px.bar(
+                    top_enum,
+                    x='username',
+                    y='progress_pct',
+                    title="Progress by Enumerator (Top 20)",
+                    labels={'progress_pct': 'Progress (%)', 'username': 'Enumerator'},
+                    color='progress_pct',
+                    color_continuous_scale='greens'
+                )
+                fig_progress.update_layout(xaxis_tickangle=-45, yaxis_range=[0, 100])
+                st.plotly_chart(fig_progress, use_container_width=True)
+            
+            with col2:
+                # Surveys completed
+                fig_surveys = px.bar(
+                    top_enum,
+                    x='username',
+                    y='actual_count',
+                    title="Surveys Completed (Top 20)",
+                    labels={'actual_count': 'Surveys Completed', 'username': 'Enumerator'},
+                    color='actual_count',
+                    color_continuous_scale='blues'
+                )
+                fig_surveys.update_layout(xaxis_tickangle=-45)
+                fig_surveys.add_hline(y=190, line_dash="dash", line_color="red", 
+                                    annotation_text="Target", annotation_position="top left")
+                st.plotly_chart(fig_surveys, use_container_width=True)
+            
+            # Detailed table
+            st.markdown("#### 📋 Detailed Progress Table")
+            display_df = enum_progress.copy()
+            display_df['Progress (%)'] = display_df['progress_pct'].round(1)
+            display_df['Completed/Target'] = display_df['actual_count'].astype(str) + '/' + display_df['target'].astype(str)
+            display_df = display_df[['username', 'Completed/Target', 'Progress (%)', 'remaining']]
+            display_df.columns = ['Enumerator', 'Completed/Target', 'Progress (%)', 'Remaining']
+            
+            st.dataframe(display_df, use_container_width=True, height=400)
+            
+        else:
+            st.info("No enumerator progress data available.")
     
-    if not enum_progress.empty:
-        # Overall progress metrics
-        col1, col2, col3, col4 = st.columns(4)
+    with tab2:
+        st.markdown("### 🌱 Species Progress Tracking")
         
-        total_enum = len(enum_progress)
-        total_surveys = enum_progress['actual_count'].sum()
-        target_total = total_enum * 190
-        overall_progress = (total_surveys / target_total * 100) if target_total > 0 else 0
+        progress_df = calculate_species_progress(df)
         
-        with col1:
-            st.metric("Total Enumerators", total_enum)
-        with col2:
-            st.metric("Total Surveys", f"{total_surveys:,}")
-        with col3:
-            st.metric("Target Total", f"{target_total:,}")
-        with col4:
-            st.metric("Overall Progress", f"{overall_progress:.1f}%")
-        
-        st.markdown("---")
-        
-        # Detailed enumerator progress table at the TOP
-        st.markdown("#### 📋 Detailed Enumerator Progress")
-        
-        # Add color coding for progress
-        def color_progress(val):
-            if val >= 80:
-                return 'background-color: #10b981; color: white; font-weight: bold;'
-            elif val >= 50:
-                return 'background-color: #f59e0b; color: white; font-weight: bold;'
-            else:
-                return 'background-color: #ef4444; color: white; font-weight: bold;'
-        
-        display_df = enum_progress.copy()
-        display_df['Progress (%)'] = display_df['progress_pct'].round(1)
-        display_df['Completed/Target'] = display_df['actual_count'].astype(str) + '/' + display_df['target'].astype(str)
-        display_df = display_df[['username', 'Completed/Target', 'Progress (%)', 'remaining']]
-        display_df.columns = ['Enumerator', 'Completed/Target', 'Progress (%)', 'Remaining']
-        
-        # Apply styling
-        styled_df = display_df.style.applymap(color_progress, subset=['Progress (%)'])
-        
-        st.dataframe(styled_df, use_container_width=True, height=400)
-        
-        # Download enumerator data
-        csv = enum_progress.to_csv(index=False)
-        st.download_button(
-            label="⬇️ Download Enumerator Progress Data",
-            data=csv,
-            file_name=f"enumerator_progress_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-            mime="text/csv"
-        )
-        
-        st.markdown("---")
-        
-        # Progress chart - Below the table
-        st.markdown("#### 📊 Progress by Enumerator")
-        # Show top 20 enumerators for better visualization
-        display_data = enum_progress.head(20).copy()
-        
-        # Add color based on progress for the chart
-        display_data['color'] = display_data['progress_pct'].apply(
-            lambda x: '#10b981' if x >= 80 else '#f59e0b' if x >= 50 else '#ef4444'
-        )
-        
-        fig_enum = px.bar(
-            display_data,
-            x='username',
-            y='progress_pct',
-            title="Progress Percentage by Enumerator (Top 20)",
-            labels={'progress_pct': 'Progress (%)', 'username': 'Enumerator'},
-            color='color',
-            color_discrete_map='identity'
-        )
-        fig_enum.update_layout(xaxis_tickangle=-45, yaxis_range=[0, 100], showlegend=False)
-        fig_enum.update_traces(hovertemplate='<b>%{x}</b><br>Progress: %{y:.1f}%<br>Surveys: %{customdata}', 
-                              customdata=display_data['actual_count'])
-        st.plotly_chart(fig_enum, use_container_width=True)
-        
-        st.markdown("#### 🎯 Surveys Completed")
-        fig_surveys = px.bar(
-            display_data,
-            x='username',
-            y='actual_count',
-            title="Surveys Completed by Enumerator (Top 20)",
-            labels={'actual_count': 'Surveys Completed', 'username': 'Enumerator'},
-            color='actual_count',
-            color_continuous_scale='blues'
-        )
-        fig_surveys.update_layout(xaxis_tickangle=-45)
-        fig_surveys.add_hline(y=190, line_dash="dash", line_color="red", 
-                            annotation_text="Target (190)", annotation_position="top left")
-        st.plotly_chart(fig_surveys, use_container_width=True)
-    
-    else:
-        st.info("No enumerator progress data available. Check if 'username' column exists.")
-
-def create_species_tab(df):
-    """Create the species progress tab"""
-    
-    st.markdown("### 🌱 Species Survey Progress")
-    
-    # Calculate species progress
-    progress_df = calculate_species_progress(df)
-    
-    if not progress_df.empty:
-        # Overall species progress metrics
-        col1, col2, col3, col4 = st.columns(4)
-        
-        total_target = progress_df['target_sample'].sum()
-        total_actual = progress_df['actual_count'].sum()
-        overall_species_progress = (total_actual / total_target * 100) if total_target > 0 else 0
-        completed_targets = progress_df[progress_df['progress_pct'] >= 100].shape[0]
-        
-        with col1:
-            st.metric("Total Species Targets", len(progress_df))
-        with col2:
-            st.metric("Total Actual Surveys", f"{total_actual:,}")
-        with col3:
-            st.metric("Total Target", f"{total_target:,}")
-        with col4:
-            st.metric("Overall Progress", f"{overall_species_progress:.1f}%")
-        
-        st.markdown("---")
-        
-        # Progress chart - Single column layout
-        st.markdown("#### 📊 Survey Progress by Species and Site (%)")
-        fig_progress = px.bar(
-            progress_df,
-            x='species',
-            y='progress_pct',
-            color='site',
-            barmode='group',
-            title="Survey Progress by Species and Site (%)",
-            labels={'progress_pct': 'Progress (%)', 'species': 'Species', 'site': 'Site'},
-            text='progress_pct'
-        )
-        fig_progress.update_traces(texttemplate='%{text:.1f}%', textposition='outside')
-        fig_progress.update_layout(yaxis_range=[0, 100])
-        st.plotly_chart(fig_progress, use_container_width=True)
-        
-        # Detailed progress table
-        st.markdown("---")
-        st.markdown("#### 📋 Detailed Species Progress")
-        
-        with st.expander("View All Species Data", expanded=True):
+        if not progress_df.empty:
+            # Overall metrics
+            col1, col2, col3, col4 = st.columns(4)
+            
+            total_target = progress_df['target_sample'].sum()
+            total_actual = progress_df['actual_count'].sum()
+            overall_species_progress = (total_actual / total_target * 100) if total_target > 0 else 0
+            completed_targets = progress_df[progress_df['progress_pct'] >= 100].shape[0]
+            
+            with col1:
+                st.metric("Total Species", len(progress_df))
+            with col2:
+                st.metric("Total Surveys", f"{total_actual:,}")
+            with col3:
+                st.metric("Total Target", f"{total_target:,}")
+            with col4:
+                st.metric("Overall Progress", f"{overall_species_progress:.1f}%")
+            
+            st.markdown("---")
+            
+            # Progress visualization
+            fig_progress = px.bar(
+                progress_df,
+                x='species',
+                y='progress_pct',
+                color='site',
+                barmode='group',
+                title="Survey Progress by Species and Site",
+                labels={'progress_pct': 'Progress (%)', 'species': 'Species', 'site': 'Site'},
+                color_discrete_sequence=['#2E8B57', '#FF6B35']
+            )
+            fig_progress.update_traces(texttemplate='%{y:.1f}%', textposition='outside')
+            fig_progress.update_layout(yaxis_range=[0, 100])
+            st.plotly_chart(fig_progress, use_container_width=True)
+            
+            # Detailed table
+            st.markdown("#### 📋 Species Progress Details")
             display_df = progress_df.copy()
             display_df['Progress'] = display_df['progress_pct'].round(1).astype(str) + '%'
             display_df['Actual/Target'] = display_df['actual_count'].astype(str) + '/' + display_df['target_sample'].astype(str)
@@ -1004,180 +1024,102 @@ def create_species_tab(df):
             
             st.dataframe(display_df, use_container_width=True)
             
-            # Download species data
-            csv = progress_df.to_csv(index=False)
-            st.download_button(
-                label="⬇️ Download Species Progress Data",
-                data=csv,
-                file_name=f"species_progress_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                mime="text/csv"
-            )
-    
-    else:
-        st.info("No species progress data available. Check if site and species columns are present.")
+        else:
+            st.info("No species progress data available.")
 
-def create_planting_rate_tab(df):
-    """Create the planting rate analysis tab"""
+def create_data_quality_tab(df):
+    """Create data quality check tab"""
     
-    st.markdown("### 🌱 Planting Rate Analysis")
+    tab1, tab2, tab3 = st.tabs(["📊 Troster Comparison", "✅ Planting Validation", "🌳 Trees Received"])
     
-    # Calculate planting rates
-    planting_rates_df = calculate_planting_rates(df)
+    with tab1:
+        st.markdown("### 📊 Survey vs Troster Data Comparison")
+        
+        discrepancies_df, summary_df = compare_with_troster(df)
+        
+        if not summary_df.empty:
+            # Metrics
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                total_discrepancies = len(discrepancies_df)
+                st.metric("Total Discrepancies", f"{total_discrepancies:,}")
+            
+            with col2:
+                avg_difference = summary_df['difference_pct'].abs().mean()
+                st.metric("Average Difference", f"{avg_difference:.1f}%")
+            
+            with col3:
+                agreement_rate = (1 - len(discrepancies_df) / summary_df['comparisons'].sum()) * 100
+                st.metric("Data Agreement Rate", f"{agreement_rate:.1f}%")
+            
+            st.markdown("---")
+            
+            # Discrepancies table
+            if not discrepancies_df.empty:
+                st.markdown("#### ⚠️ Significant Discrepancies (>25% Difference)")
+                
+                display_df = discrepancies_df.copy()
+                display_df['Difference'] = display_df['difference_pct'].round(1).astype(str) + '%'
+                display_df = display_df[[
+                    'username', 'farmer_name', 'species', 'site',
+                    'survey_value', 'troster_value', 'Difference'
+                ]]
+                display_df.columns = [
+                    'Enumerator', 'Farmer Name', 'Species', 'Site',
+                    'Survey Value', 'Troster Value', 'Difference (%)'
+                ]
+                
+                st.dataframe(display_df, use_container_width=True, height=400)
+            else:
+                st.success("✅ No significant discrepancies found")
+        
+        else:
+            st.info("No troster comparison data available.")
     
-    if not planting_rates_df.empty:
-        # Overall metrics
-        col1, col2, col3, col4 = st.columns(4)
+    with tab2:
+        st.markdown("### ✅ Planting Number Validation")
+        
+        # Tree planting validation
+        st.markdown("#### 🔍 High Planting Records")
+        
+        col1, col2 = st.columns(2)
         
         with col1:
-            avg_overall_rate = planting_rates_df['average_planting_rate'].mean()
-            st.metric("Average Planting Rate", f"{avg_overall_rate:.1%}")
+            tree_threshold = st.number_input("Minimum Trees Planted:", min_value=0, value=2000, step=100)
         
         with col2:
-            total_planted = planting_rates_df['total_planted'].sum()
-            st.metric("Total Planted", f"{total_planted:,}")
-        
-        with col3:
-            total_got = planting_rates_df['total_got'].sum()
-            st.metric("Total Received", f"{total_got:,}")
-        
-        with col4:
-            overall_rate = total_planted / total_got if total_got > 0 else 0
-            st.metric("Overall Planting Rate", f"{overall_rate:.1%}")
-        
-        st.markdown("---")
-        
-        # Planting rate by species - Single column layout
-        st.markdown("#### 📊 Planting Rate by Species")
-        fig_rates = px.bar(
-            planting_rates_df,
-            x='species',
-            y='average_planting_rate',
-            title="Average Planting Rate by Species",
-            labels={'average_planting_rate': 'Planting Rate', 'species': 'Species'},
-            color='average_planting_rate',
-            color_continuous_scale='greens'
-        )
-        fig_rates.update_traces(texttemplate='%{y:.1%}', textposition='outside')
-        fig_rates.update_layout(yaxis_tickformat='.0%')
-        st.plotly_chart(fig_rates, use_container_width=True)
-        
-        st.markdown("---")
-        
-        # NEW: Tree Planting Validation Section
-        st.markdown("#### 🔍 Tree Planting Validation")
-        
-        # Create filters
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            # Username filter
             if 'username' in df.columns:
                 usernames = ['All'] + sorted(df['username'].dropna().unique().tolist())
-                selected_username = st.selectbox("Filter by Enumerator:", usernames, key="validation_username")
+                selected_username = st.selectbox("Filter by Enumerator:", usernames)
             else:
                 selected_username = 'All'
-                st.info("No username column found")
         
-        with col2:
-            # Species filter
-            species_options = ['All', 'gesho', 'grev', 'dec', 'wanza', 'papaya', 'coffee', 'moringa']
-            selected_species = st.selectbox("Filter by Species:", species_options, key="validation_species")
-        
-        with col3:
-            # Tree threshold filter
-            tree_threshold = st.number_input("Minimum Trees Planted:", min_value=0, value=2000, step=100, key="validation_threshold")
-        
-        # Apply filters
-        filtered_validation_df = df.copy()
-        
-        if selected_username != 'All':
-            filtered_validation_df = filtered_validation_df[filtered_validation_df['username'] == selected_username]
-        
-        # Species mapping for column names
+        # Validation logic
         species_columns = {
-            'gesho': {
-                'got': 'oaf_trees.oaf_gesho.num_got',
-                'planted': 'oaf_trees.oaf_gesho.num_planted_private',
-                'troster': 'num_oaf_gesho_troster'
-            },
-            'grev': {
-                'got': 'oaf_trees.oaf_grev.num_got',
-                'planted': 'oaf_trees.oaf_grev.num_planted_private',
-                'troster': 'num_oaf_grev_troster'
-            },
-            'dec': {
-                'got': 'oaf_trees.oaf_dec.num_got',
-                'planted': 'oaf_trees.oaf_dec.num_planted_private',
-                'troster': 'num_oaf_dec_troster'
-            },
-            'wanza': {
-                'got': 'oaf_trees.oaf_wanza.num_got',
-                'planted': 'oaf_trees.oaf_wanza.num_planted_private',
-                'troster': 'num_oaf_wanza_troster'
-            },
-            'papaya': {
-                'got': 'oaf_trees.oaf_papaya.num_got',
-                'planted': 'oaf_trees.oaf_papaya.num_planted_private',
-                'troster': 'num_oaf_papaya_troster'
-            },
-            'coffee': {
-                'got': 'oaf_trees.oaf_coffee.num_got',
-                'planted': 'oaf_trees.oaf_coffee.num_planted_private',
-                'troster': 'num_oaf_coffee_troster'
-            },
-            'moringa': {
-                'got': 'oaf_trees.oaf_moringa.num_got',
-                'planted': 'oaf_trees.oaf_moringa.num_planted_private',
-                'troster': 'num_oaf_moringa_troster'
-            }
+            'gesho': 'oaf_trees.oaf_gesho.num_planted_private',
+            'grev': 'oaf_trees.oaf_grev.num_planted_private',
+            'dec': 'oaf_trees.oaf_dec.num_planted_private',
+            'wanza': 'oaf_trees.oaf_wanza.num_planted_private',
+            'papaya': 'oaf_trees.oaf_papaya.num_planted_private',
+            'coffee': 'oaf_trees.oaf_coffee.num_planted_private',
+            'moringa': 'oaf_trees.oaf_moringa.num_planted_private'
         }
         
-        # Create validation data
         validation_data = []
-        
-        for idx, row in filtered_validation_df.iterrows():
-            if selected_species == 'All':
-                # Check all species
-                for species, columns in species_columns.items():
-                    got_col = columns['got']
-                    planted_col = columns['planted']
-                    troster_col = columns['troster']
-                    
-                    if (got_col in row and planted_col in row and 
-                        pd.notna(row[got_col]) and pd.notna(row[planted_col]) and
-                        row[planted_col] >= tree_threshold):
-                        
-                        validation_data.append({
-                            'username': row.get('username', 'N/A'),
-                            'farmer_name': row.get('farmer_name', 'N/A'),
-                            'phone_no': row.get('phone_no', 'N/A'),
-                            'unique_id': row.get('id', 'N/A'),
-                            'species': species,
-                            'trees_got': row[got_col],
-                            'trees_planted': row[planted_col],
-                            'trees_troster': row.get(troster_col, 0) if troster_col in row else 0,
-                            'site': row.get('site', 'N/A')
-                        })
-            else:
-                # Check specific species
-                columns = species_columns[selected_species]
-                got_col = columns['got']
-                planted_col = columns['planted']
-                troster_col = columns['troster']
+        for species, col in species_columns.items():
+            if col in df.columns:
+                filtered_data = df[df[col] >= tree_threshold]
+                if selected_username != 'All':
+                    filtered_data = filtered_data[filtered_data['username'] == selected_username]
                 
-                if (got_col in row and planted_col in row and 
-                    pd.notna(row[got_col]) and pd.notna(row[planted_col]) and
-                    row[planted_col] >= tree_threshold):
-                    
+                for idx, row in filtered_data.iterrows():
                     validation_data.append({
                         'username': row.get('username', 'N/A'),
                         'farmer_name': row.get('farmer_name', 'N/A'),
-                        'phone_no': row.get('phone_no', 'N/A'),
                         'unique_id': row.get('id', 'N/A'),
-                        'species': selected_species,
-                        'trees_got': row[got_col],
-                        'trees_planted': row[planted_col],
-                        'trees_troster': row.get(troster_col, 0) if troster_col in row else 0,
+                        'species': species,
+                        'trees_planted': row[col],
                         'site': row.get('site', 'N/A')
                     })
         
@@ -1185,381 +1127,271 @@ def create_planting_rate_tab(df):
         
         if not validation_df.empty:
             st.markdown(f"**Found {len(validation_df)} records with {tree_threshold}+ trees planted**")
-            
-            # Display the validation table
-            display_validation = validation_df[[
-                'username', 'farmer_name', 'unique_id', 'phone_no', 'species', 
-                'trees_got', 'trees_planted', 'trees_troster', 'site'
-            ]].copy()
-            display_validation.columns = [
-                'Enumerator', 'Farmer Name', 'Unique ID', 'Phone', 'Species',
-                'Trees Got', 'Trees Planted', 'Trees Troster', 'Site'
-            ]
-            
-            st.dataframe(display_validation, use_container_width=True, height=400)
-            
-            # Download validation data
-            csv_validation = validation_df.to_csv(index=False)
-            st.download_button(
-                label="⬇️ Download Validation Data",
-                data=csv_validation,
-                file_name=f"tree_validation_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                mime="text/csv"
-            )
+            st.dataframe(validation_df, use_container_width=True)
         else:
-            st.info(f"No records found with {tree_threshold}+ trees planted for the selected filters.")
+            st.info(f"No records found with {tree_threshold}+ trees planted")
         
+        # Planting outliers
         st.markdown("---")
+        st.markdown("#### 📊 Planting Rate Outliers")
         
-        # NEW: Planting Rate Outliers Section
-        st.markdown("#### ⚠️ Planting Rate Outliers (3+ Standard Deviations)")
-        
-        # Find outliers
         outliers_df = find_planting_outliers(df)
-        
         if not outliers_df.empty:
             st.warning(f"Found {len(outliers_df)} planting rate outliers")
-            
-            # Filter outliers by enumerator
-            if 'username' in outliers_df.columns:
-                outlier_enumerators = ['All'] + sorted(outliers_df['username'].unique().tolist())
-                selected_outlier_enum = st.selectbox("Filter outliers by Enumerator:", outlier_enumerators, key="outlier_enum")
-                
-                if selected_outlier_enum != 'All':
-                    filtered_outliers = outliers_df[outliers_df['username'] == selected_outlier_enum]
-                else:
-                    filtered_outliers = outliers_df
-            else:
-                filtered_outliers = outliers_df
-            
-            # Display outliers table
-            display_outliers = filtered_outliers[[
-                'username', 'farmer_name', 'unique_id', 'phone_no', 'species', 'site',
-                'trees_got', 'trees_planted', 'planting_rate', 'mean_rate', 'std_dev'
-            ]].copy()
+            display_outliers = outliers_df[['username', 'farmer_name', 'species', 'trees_got', 'trees_planted', 'planting_rate']].copy()
             display_outliers['planting_rate'] = (display_outliers['planting_rate'] * 100).round(1)
-            display_outliers['mean_rate'] = (display_outliers['mean_rate'] * 100).round(1)
-            display_outliers['std_dev'] = (display_outliers['std_dev'] * 100).round(1)
-            
-            display_outliers.columns = [
-                'Enumerator', 'Farmer Name', 'Unique ID', 'Phone', 'Species', 'Site',
-                'Trees Got', 'Trees Planted', 'Planting Rate (%)', 'Mean Rate (%)', 'Std Dev (%)'
-            ]
-            
-            st.dataframe(display_outliers, use_container_width=True, height=400)
-            
-            # Download outliers data
-            csv_outliers = outliers_df.to_csv(index=False)
-            st.download_button(
-                label="⬇️ Download Outliers Data",
-                data=csv_outliers,
-                file_name=f"planting_outliers_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                mime="text/csv"
-            )
+            st.dataframe(display_outliers, use_container_width=True)
         else:
             st.success("✅ No planting rate outliers found")
-        
-        # Detailed planting rate table
-        st.markdown("---")
-        st.markdown("#### 📋 Detailed Planting Rate Analysis")
-        
-        with st.expander("View Detailed Planting Data", expanded=False):
-            display_df = planting_rates_df.copy()
-            display_df['Average Rate'] = (display_df['average_planting_rate'] * 100).round(1).astype(str) + '%'
-            display_df['Overall Rate'] = (display_df['overall_planting_rate'] * 100).round(1).astype(str) + '%'
-            display_df['Min Rate'] = (display_df['min_rate'] * 100).round(1).astype(str) + '%'
-            display_df['Max Rate'] = (display_df['max_rate'] * 100).round(1).astype(str) + '%'
-            display_df['Std Dev'] = (display_df['std_rate'] * 100).round(1).astype(str) + '%'
-            
-            display_df = display_df[[
-                'species', 'Average Rate', 'Overall Rate', 'Min Rate', 'Max Rate', 'Std Dev',
-                'total_got', 'total_planted', 'observations'
-            ]]
-            display_df.columns = [
-                'Species', 'Avg Rate', 'Overall Rate', 'Min Rate', 'Max Rate', 'Std Dev',
-                'Total Received', 'Total Planted', 'Observations'
-            ]
-            
-            st.dataframe(display_df, use_container_width=True)
-            
-            # Download planting rate data
-            csv = planting_rates_df.to_csv(index=False)
-            st.download_button(
-                label="⬇️ Download Planting Rate Data",
-                data=csv,
-                file_name=f"planting_rates_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                mime="text/csv"
-            )
     
-    else:
-        st.info("No planting rate data available. Check if species columns are present.")
-
-def create_troster_comparison_tab(df):
-    """Create the troster comparison tab"""
-    
-    st.markdown("### 📊 Survey vs Troster Data Comparison")
-    
-    # Calculate troster comparisons
-    discrepancies_df, summary_df = compare_with_troster(df)
-    
-    if not summary_df.empty:
-        # Overall comparison metrics
-        col1, col2, col3, col4 = st.columns(4)
+    with tab3:
+        st.markdown("### 🌳 Trees Received Analysis")
         
-        with col1:
-            total_discrepancies = len(discrepancies_df)
-            st.metric("Total Discrepancies", f"{total_discrepancies:,}")
-        
-        with col2:
-            avg_difference = summary_df['difference_pct'].abs().mean()
-            st.metric("Avg Difference", f"{avg_difference:.1f}%")
-        
-        with col3:
-            total_survey = summary_df['total_survey'].sum()
-            st.metric("Total Survey", f"{total_survey:,}")
-        
-        with col4:
-            total_troster = summary_df['total_troster'].sum()
-            st.metric("Total Troster", f"{total_troster:,}")
-        
-        st.markdown("---")
-        
-        # Comparison summary table
-        st.markdown("#### 📋 Comparison Summary by Species")
-        
-        display_summary = summary_df.copy()
-        display_summary['Difference (%)'] = display_summary['difference_pct'].round(1).astype(str) + '%'
-        display_summary = display_summary[[
-            'species', 'total_survey', 'total_troster', 'Difference (%)', 'comparisons'
-        ]]
-        display_summary.columns = [
-            'Species', 'Survey Total', 'Troster Total', 'Difference (%)', 'Valid Comparisons'
+        species_columns_got = [
+            'oaf_trees.oaf_gesho.num_got',
+            'oaf_trees.oaf_grev.num_got',
+            'oaf_trees.oaf_dec.num_got',
+            'oaf_trees.oaf_wanza.num_got',
+            'oaf_trees.oaf_papaya.num_got',
+            'oaf_trees.oaf_coffee.num_got',
+            'oaf_trees.oaf_moringa.num_got'
         ]
         
-        st.dataframe(display_summary, use_container_width=True)
+        trees_data = []
+        for col in species_columns_got:
+            if col in df.columns:
+                species = col.split('.')[2].replace('oaf_', '')
+                total_trees = df[col].sum()
+                avg_trees = df[col].mean()
+                farmers_received = df[df[col] > 0].shape[0]
+                
+                trees_data.append({
+                    'species': species,
+                    'total_trees': total_trees,
+                    'average_per_farmer': avg_trees,
+                    'farmers_received': farmers_received
+                })
         
-        # Discrepancies table
-        st.markdown("---")
-        st.markdown("#### ⚠️ Significant Discrepancies (>25% Difference)")
-        
-        if not discrepancies_df.empty:
-            st.warning(f"Found {len(discrepancies_df)} records with >25% difference between survey and troster data")
-            
-            # NEW: Enumerator filter for discrepancies
-            if 'username' in discrepancies_df.columns:
-                unique_enumerators = ['All'] + sorted(discrepancies_df['username'].unique().tolist())
-                
-                col1, col2 = st.columns([1, 3])
-                
-                with col1:
-                    selected_enum = st.selectbox("Filter by Enumerator:", unique_enumerators, key="discrepancy_enum")
-                
-                # Filter discrepancies by selected enumerator
-                if selected_enum != 'All':
-                    filtered_discrepancies = discrepancies_df[discrepancies_df['username'] == selected_enum]
-                else:
-                    filtered_discrepancies = discrepancies_df
-                
-                st.markdown(f"**Showing {len(filtered_discrepancies)} discrepancies for {selected_enum}**")
-            else:
-                filtered_discrepancies = discrepancies_df
-            
-            with st.expander("View All Discrepancies", expanded=True):
-                display_df = filtered_discrepancies.copy()
-                display_df['Difference'] = display_df['difference_pct'].round(1).astype(str) + '%'
-                display_df = display_df[[
-                    'username', 'farmer_name', 'phone_no', 'unique_id', 'species', 'site',
-                    'survey_value', 'troster_value', 'Difference'
-                ]]
-                display_df.columns = [
-                    'Enumerator', 'Farmer Name', 'Phone', 'Unique ID', 'Species', 'Site',
-                    'Survey Value', 'Troster Value', 'Difference (%)'
-                ]
-                
-                st.dataframe(display_df, use_container_width=True, height=400)
-                
-                # Download discrepancies data
-                csv = discrepancies_df.to_csv(index=False)
-                st.download_button(
-                    label="⬇️ Download Discrepancies Data",
-                    data=csv,
-                    file_name=f"troster_discrepancies_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                    mime="text/csv"
-                )
-            
-            # Enumerator analysis
-            st.markdown("#### 👥 Enumerator Discrepancy Analysis")
-            enum_analysis = discrepancies_df['username'].value_counts().reset_index()
-            enum_analysis.columns = ['username', 'discrepancy_count']
+        if trees_data:
+            trees_df = pd.DataFrame(trees_data)
             
             col1, col2 = st.columns(2)
             
             with col1:
-                st.markdown("**Top Enumerators with Discrepancies:**")
-                st.dataframe(enum_analysis.head(10), use_container_width=True)
+                fig_total = px.bar(
+                    trees_df,
+                    x='species',
+                    y='total_trees',
+                    title="Total Trees Received by Species",
+                    labels={'total_trees': 'Total Trees', 'species': 'Species'},
+                    color_discrete_sequence=['#2E8B57']
+                )
+                st.plotly_chart(fig_total, use_container_width=True)
             
             with col2:
-                st.markdown("**Species with Most Discrepancies:**")
-                species_analysis = discrepancies_df['species'].value_counts().reset_index()
-                species_analysis.columns = ['species', 'discrepancy_count']
-                st.dataframe(species_analysis, use_container_width=True)
+                fig_avg = px.bar(
+                    trees_df,
+                    x='species',
+                    y='average_per_farmer',
+                    title="Average Trees per Farmer by Species",
+                    labels={'average_per_farmer': 'Average Trees', 'species': 'Species'},
+                    color_discrete_sequence=['#FF6B35']
+                )
+                st.plotly_chart(fig_avg, use_container_width=True)
+            
+            st.markdown("#### 📋 Trees Received Summary")
+            st.dataframe(trees_df, use_container_width=True)
         else:
-            st.success("✅ No significant discrepancies found (>25% difference)")
-    
-    else:
-        st.info("No troster comparison data available. Check if troster columns are present.")
+            st.info("No trees received data available.")
 
-def create_demographics_tab(df):
-    """Create the demographics analysis tab"""
+def create_preliminary_results_tab(df):
+    """Create preliminary results tab"""
     
-    st.markdown("### 👥 Respondent Demographics")
+    tab1, tab2, tab3, tab4 = st.tabs(["👥 HH Characteristics", "🌱 Planting Rates", "📈 Early Survival", "🌿 Survival Project"])
     
-    # Analyze demographics
-    demo_data = analyze_demographics(df)
-    
-    if demo_data:
-        st.markdown("#### 📊 Demographic Overview")
+    with tab1:
+        st.markdown("### 👥 Household Characteristics")
         
-        # Display demographic variables in an organized way
-        for demo_var, stats in demo_data.items():
-            with st.expander(f"📈 {demo_var}", expanded=False):
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.metric("Total Responses", f"{stats['count']:,}")
-                    st.metric("Missing Values", f"{stats['missing']:,}")
-                    
-                    if stats['type'] == 'numeric':
+        # Demographic analysis
+        demo_data = analyze_demographics(df)
+        hh_data = analyze_hh_characteristics(df)
+        
+        if demo_data or hh_data:
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("#### 📊 Demographic Summary")
+                for var, stats in demo_data.items():
+                    with st.expander(f"{var.title()} Statistics", expanded=False):
                         st.metric("Mean", f"{stats['mean']:.2f}")
                         st.metric("Median", f"{stats['median']:.2f}")
-                    else:
-                        st.metric("Unique Values", stats['unique_values'])
-                
-                with col2:
-                    if stats['type'] == 'numeric':
-                        st.metric("Standard Deviation", f"{stats['std']:.2f}")
-                        st.metric("Minimum", f"{stats['min']:.2f}")
-                        st.metric("Maximum", f"{stats['max']:.2f}")
-                    else:
-                        st.markdown("**Top Values:**")
-                        for value, count in list(stats['top_values'].items())[:5]:
-                            st.write(f"- {value}: {count:,}")
-        
-        # Create visualizations for key demographic variables
-        st.markdown("---")
-        st.markdown("#### 📈 Demographic Visualizations")
-        
-        # Select a demographic variable to visualize
-        demo_vars = list(demo_data.keys())
-        selected_demo = st.selectbox("Select demographic variable to visualize:", demo_vars)
-        
-        if selected_demo:
-            # Find the original column name
-            original_col = None
-            for col in df.columns:
-                if col.replace('demo.', '').replace('_', ' ').title() == selected_demo:
-                    original_col = col
-                    break
+                        st.metric("Std Dev", f"{stats['std']:.2f}")
+                        st.metric("Range", f"{stats['min']:.2f} - {stats['max']:.2f}")
             
-            if original_col and original_col in df.columns:
-                if pd.api.types.is_numeric_dtype(df[original_col]):
-                    # Create histogram for numeric variables
-                    fig = px.histogram(
+            with col2:
+                st.markdown("#### 📈 Distribution Analysis")
+                if 'demo.age' in demo_data:
+                    fig_age = px.histogram(
                         df, 
-                        x=original_col,
-                        title=f"Distribution of {selected_demo}",
-                        labels={original_col: selected_demo},
-                        color_discrete_sequence=['#3b82f6']
+                        x='demo.age',
+                        title="Age Distribution",
+                        labels={'demo.age': 'Age'},
+                        color_discrete_sequence=['#2E8B57']
                     )
-                    fig.update_layout(showlegend=False)
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    # Create bar chart for categorical variables (top 15)
-                    value_counts = df[original_col].value_counts().head(15)
-                    fig = px.bar(
-                        x=value_counts.index,
-                        y=value_counts.values,
-                        title=f"Top Values for {selected_demo}",
-                        labels={'x': selected_demo, 'y': 'Count'},
-                        color=value_counts.values,
-                        color_continuous_scale='blues'
-                    )
-                    fig.update_layout(xaxis_tickangle=-45, showlegend=False)
-                    st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("No demographic variables found (columns starting with 'demo.').")
-
-def create_data_tab(df):
-    """Create the data exploration tab"""
+                    st.plotly_chart(fig_age, use_container_width=True)
+            
+            # HH characteristics
+            st.markdown("#### 🏠 Household Characteristics")
+            if hh_data:
+                for characteristic, distribution in hh_data.items():
+                    col1, col2 = st.columns([1, 2])
+                    with col1:
+                        st.write(f"**{characteristic.title()} Distribution:**")
+                        for key, value in distribution.items():
+                            st.write(f"- {key}: {value:,}")
+                    with col2:
+                        fig = px.pie(
+                            values=list(distribution.values()),
+                            names=list(distribution.keys()),
+                            title=f"{characteristic.title()} Distribution",
+                            color_discrete_sequence=px.colors.sequential.Greens_r
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("No demographic data available.")
     
-    st.markdown("### 🔍 Data Exploration")
-    
-    # Data preview
-    st.markdown("#### 📋 Data Preview")
-    st.dataframe(
-        df.head(10), 
-        use_container_width=True,
-        height=400
-    )
-    
-    # Two column layout for additional info
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        with st.expander("🔍 Column Information", expanded=False):
-            col_info_df = pd.DataFrame({
-                'Column': df.columns,
-                'Data Type': df.dtypes.astype(str),
-                'Non-Null Count': df.count().values,
-                'Null Count': df.isnull().sum().values
-            })
-            st.dataframe(col_info_df, use_container_width=True, height=300)
-    
-    with col2:
-        with st.expander("📊 Data Statistics", expanded=False):
-            st.write("**Numerical Summary:**")
-            if len(df.select_dtypes(include=[np.number]).columns) > 0:
-                st.dataframe(df.describe(), use_container_width=True)
-            else:
-                st.info("No numerical columns found")
-    
-    # Download section
-    st.markdown("### 💾 Export Data")
-    col1, col2, col3 = st.columns([2, 2, 2])
-    
-    with col1:
-        csv = df.to_csv(index=False)
-        st.download_button(
-            label="⬇️ Download as CSV",
-            data=csv,
-            file_name=f"eth_planting_survey_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-            mime="text/csv",
-            use_container_width=True
-        )
-    
-    with col2:
-        excel_buffer = io.BytesIO()
-        with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-            df.to_excel(writer, index=False, sheet_name='Data')
-        excel_buffer.seek(0)
+    with tab2:
+        st.markdown("### 🌱 Planting Rate Analysis")
         
-        st.download_button(
-            label="⬇️ Download as Excel",
-            data=excel_buffer,
-            file_name=f"eth_planting_survey_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True
-        )
+        planting_rates_df = calculate_planting_rates(df)
+        
+        if not planting_rates_df.empty:
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                overall_rate = planting_rates_df['total_planted'].sum() / planting_rates_df['total_got'].sum()
+                st.metric("Overall Planting Rate", f"{overall_rate:.1%}")
+            
+            with col2:
+                avg_rate = planting_rates_df['average_planting_rate'].mean()
+                st.metric("Average Species Rate", f"{avg_rate:.1%}")
+            
+            st.markdown("---")
+            
+            # Planting rate by species
+            fig_rates = px.bar(
+                planting_rates_df,
+                x='species',
+                y='average_planting_rate',
+                title="Planting Rate by Species",
+                labels={'average_planting_rate': 'Planting Rate', 'species': 'Species'},
+                color='average_planting_rate',
+                color_continuous_scale='greens'
+            )
+            fig_rates.update_traces(texttemplate='%{y:.1%}', textposition='outside')
+            fig_rates.update_layout(yaxis_tickformat='.0%')
+            st.plotly_chart(fig_rates, use_container_width=True)
+            
+            # Detailed table
+            st.markdown("#### 📋 Planting Rate Details")
+            display_df = planting_rates_df.copy()
+            display_df['Avg Rate'] = (display_df['average_planting_rate'] * 100).round(1).astype(str) + '%'
+            display_df['Overall Rate'] = (display_df['overall_planting_rate'] * 100).round(1).astype(str) + '%'
+            display_df = display_df[['species', 'Avg Rate', 'Overall Rate', 'total_got', 'total_planted', 'observations']]
+            display_df.columns = ['Species', 'Average Rate', 'Overall Rate', 'Total Received', 'Total Planted', 'Observations']
+            
+            st.dataframe(display_df, use_container_width=True)
+        
+        else:
+            st.info("No planting rate data available.")
     
-    # Full data view
-    with st.expander("📊 View Full Dataset", expanded=False):
-        st.dataframe(df, use_container_width=True, height=600)
+    with tab3:
+        st.markdown("### 📈 Early Survival Rates")
+        
+        survival_df = calculate_survival_rates(df)
+        
+        if not survival_df.empty:
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                avg_survival = survival_df['survival_rate'].mean()
+                st.metric("Average Survival Rate", f"{avg_survival:.1%}")
+            
+            with col2:
+                total_obs = survival_df['observations'].sum()
+                st.metric("Total Observations", f"{total_obs:,}")
+            
+            st.markdown("---")
+            
+            # Survival rate visualization
+            fig_survival = px.bar(
+                survival_df,
+                x='species',
+                y='survival_rate',
+                title="Early Survival Rates by Species",
+                labels={'survival_rate': 'Survival Rate', 'species': 'Species'},
+                color='survival_rate',
+                color_continuous_scale='viridis'
+            )
+            fig_survival.update_traces(texttemplate='%{y:.1%}', textposition='outside')
+            fig_survival.update_layout(yaxis_tickformat='.0%')
+            st.plotly_chart(fig_survival, use_container_width=True)
+            
+            st.info("🔬 Early survival analysis is based on preliminary field observations and will be updated with more complete data.")
+        
+        else:
+            st.info("Survival rate analysis will be available as data collection progresses.")
+    
+    with tab4:
+        st.markdown("### 🌿 Survival Project Analysis")
+        
+        st.markdown("""
+        <div style='background-color: #f8fff9; padding: 20px; border-radius: 10px; border-left: 4px solid #2E8B57;'>
+            <h4 style='color: #1e5631; margin-top: 0;'>📋 Project Overview</h4>
+            <p style='color: #555;'>The survival project monitoring system is currently being set up. This section will include:</p>
+            <ul style='color: #555;'>
+                <li>Long-term tree survival tracking</li>
+                <li>Environmental impact assessments</li>
+                <li>Farmer adoption and satisfaction metrics</li>
+                <li>Economic impact analysis</li>
+            </ul>
+            <p style='color: #555;'><strong>Status:</strong> Data collection in progress</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Placeholder for future content
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.metric("Planned Monitoring Sites", "25")
+            st.metric("Target Sample Size", "1,200")
+        
+        with col2:
+            st.metric("Monitoring Frequency", "Quarterly")
+            st.metric("Project Duration", "24 months")
 
 def main():
-    # Sidebar - Simplified to only show filters
+    # Load logo and create header
+    logo_url = load_logo()
+    
+    if logo_url:
+        st.markdown(f"""
+            <div class='logo-header'>
+                <img src='{logo_url}' width='80' height='80'>
+                <div>
+                    <h1 style='margin: 0; color: #1e5631;'>ET 2025 Amhara Planting Survey</h1>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
+            <div class='info-box'>
+                <h2 style='color: white; margin: 0;'>🌳 ET 2025 Amhara Planting Survey</h2>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    # Sidebar
     with st.sidebar:
-        st.image("https://via.placeholder.com/150x150.png?text=Logo", width=150)
-        st.markdown("---")
         st.markdown("### 📊 Dashboard Controls")
         
         # Fetch Latest Data button
@@ -1634,6 +1466,20 @@ def main():
             selected_treatment = 'All'
             selected_site = 'All'
             st.info("No data loaded. Click 'Fetch Latest Data' to begin.")
+        
+        # Data export in sidebar
+        st.markdown("---")
+        st.markdown("### 💾 Quick Export")
+        
+        if 'df' in st.session_state:
+            csv = st.session_state['df'].to_csv(index=False)
+            st.download_button(
+                label="📥 Download Full Dataset",
+                data=csv,
+                file_name=f"oaf_amhara_survey_{datetime.now().strftime('%Y%m%d')}.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
     
     # Fetch data from sidebar button
     if fetch_button:
@@ -1650,50 +1496,33 @@ def main():
                 st.session_state['data_loaded'] = True
                 st.rerun()
     
-    # Main header
-    st.markdown("""
-        <div class='info-box'>
-            <h2 style='color: white; margin: 0;'>🌳 ETH 2025 Planting Survey Dashboard</h2>
-        </div>
-    """, unsafe_allow_html=True)
-    
     # Display data if available
     if 'filtered_df' in st.session_state:
         df = st.session_state['filtered_df']
         
-        # Create tabs - Added Demographics tab
-        tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
-            "📊 Overview", "👥 Enumerator Progress", "🌱 Species Progress", 
-            "🌿 Planting Rates", "📈 Troster Comparison", "👤 Demographics", "🔍 Data Explorer"
+        # Create tabs according to new structure
+        tab1, tab2, tab3, tab4 = st.tabs([
+            "📊 Overview", "📈 Progress", "✅ Data Quality", "🔬 Preliminary Results"
         ])
         
         with tab1:
             create_overview_tab(df)
         
         with tab2:
-            create_enumerator_tab(df)
+            create_progress_tab(df)
         
         with tab3:
-            create_species_tab(df)
+            create_data_quality_tab(df)
         
         with tab4:
-            create_planting_rate_tab(df)
-        
-        with tab5:
-            create_troster_comparison_tab(df)
-        
-        with tab6:
-            create_demographics_tab(df)
-        
-        with tab7:
-            create_data_tab(df)
+            create_preliminary_results_tab(df)
     
     else:
         # Empty state
         st.markdown("""
-            <div style='text-align: center; padding: 60px; background-color: #f8fafc; border-radius: 10px; margin-top: 30px;'>
-                <h2 style='color: #64748b;'>📊 No Data Loaded Yet</h2>
-                <p style='color: #94a3b8; font-size: 1.1rem;'>
+            <div style='text-align: center; padding: 60px; background-color: #f8fff9; border-radius: 10px; margin-top: 30px; border: 2px dashed #2E8B57;'>
+                <h2 style='color: #1e5631;'>📊 No Data Loaded Yet</h2>
+                <p style='color: #2E8B57; font-size: 1.1rem;'>
                     Click the "Fetch Latest Data" button in the sidebar to load data from CommCare
                 </p>
             </div>

@@ -4,12 +4,15 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timedelta
 from requests.auth import HTTPBasicAuth
 import requests
 import time
 import io
 import base64
+from scipy import stats
+import warnings
+warnings.filterwarnings('ignore')
 
 # Page configuration
 st.set_page_config(
@@ -349,7 +352,7 @@ def clean_data(df):
     else:
         st.warning("⚠️ 'intro_consent.consent' column not found. Using all data without consent filtering.")
     
-    # 5. NEW: Filter out records with missing gender data (demo.gender)
+    # 5. Filter out records with missing gender data (demo.gender)
     if 'demo.gender' in df_clean.columns:
         initial_count = len(df_clean)
         df_clean = df_clean.dropna(subset=['demo.gender'])
@@ -366,9 +369,7 @@ def clean_data(df):
         if col in df_clean.columns:
             df_clean[col] = pd.to_datetime(df_clean[col], errors='coerce')
     
-    # 7. Convert numeric columns and handle NA values for species data
-    numeric_columns = ['intro_consent.consent', 'demo.age', 'demo.hh_size', 'asset.land_own_total']
-    
+    # 7. Convert ALL numeric columns and handle NA values
     # Define species columns for planting analysis
     species_columns_got = [
         'oaf_trees.oaf_gesho.num_got',
@@ -390,6 +391,26 @@ def clean_data(df):
         'oaf_trees.oaf_moringa.num_planted_private'
     ]
     
+    species_columns_sold = [
+        'oaf_trees.oaf_gesho.num_sold',
+        'oaf_trees.oaf_grev.num_sold',
+        'oaf_trees.oaf_dec.num_sold',
+        'oaf_trees.oaf_wanza.num_sold',
+        'oaf_trees.oaf_papaya.num_sold',
+        'oaf_trees.oaf_coffee.num_sold',
+        'oaf_trees.oaf_moringa.num_sold'
+    ]
+    
+    species_columns_comm = [
+        'oaf_trees.oaf_gesho.num_planted_comm',
+        'oaf_trees.oaf_grev.num_planted_comm',
+        'oaf_trees.oaf_dec.num_planted_comm',
+        'oaf_trees.oaf_wanza.num_planted_comm',
+        'oaf_trees.oaf_papaya.num_planted_comm',
+        'oaf_trees.oaf_coffee.num_planted_comm',
+        'oaf_trees.oaf_moringa.num_planted_comm'
+    ]
+    
     # Troster columns
     troster_columns = [
         'num_oaf_gesho_troster',
@@ -401,15 +422,16 @@ def clean_data(df):
         'num_oaf_moringa_troster'
     ]
     
-    all_species_columns = species_columns_got + species_columns_planted + troster_columns
-    numeric_columns.extend(all_species_columns)
+    all_numeric_columns = (species_columns_got + species_columns_planted + 
+                          species_columns_sold + species_columns_comm + troster_columns +
+                          ['intro_consent.consent', 'demo.age', 'demo.hh_size', 'asset.land_own_total'])
     
-    for col in numeric_columns:
+    for col in all_numeric_columns:
         if col in df_clean.columns:
             df_clean[col] = pd.to_numeric(df_clean[col], errors='coerce')
     
     # 8. Replace NA with 0 for specific species columns
-    for col in species_columns_got + species_columns_planted:
+    for col in species_columns_got + species_columns_planted + species_columns_sold + species_columns_comm:
         if col in df_clean.columns:
             df_clean[col] = df_clean[col].fillna(0)
     
@@ -714,7 +736,7 @@ def compare_with_troster(df):
                     'comparisons': len(valid_data)
                 })
                 
-                # Find individual discrepancies > 25%
+                # Find individual discrepancies > 35% (changed from 25%)
                 for idx, row in valid_data.iterrows():
                     survey_val = row[survey_col]
                     troster_val = row[troster_col]
@@ -722,7 +744,7 @@ def compare_with_troster(df):
                     if troster_val > 0:  # Avoid division by zero
                         difference_pct = abs(survey_val - troster_val) / troster_val * 100
                         
-                        if difference_pct > 25:
+                        if difference_pct > 35:  # Changed from 25 to 35
                             discrepancies.append({
                                 'username': row.get('username', 'N/A'),
                                 'farmer_name': row.get('farmer_name', 'N/A'),
@@ -736,58 +758,6 @@ def compare_with_troster(df):
                             })
     
     return pd.DataFrame(discrepancies), pd.DataFrame(summary_data)
-
-def analyze_demographics(df):
-    """Analyze demographic variables"""
-    
-    # Find key demographic columns
-    demo_columns = ['demo.age', 'demo.hh_size', 'asset.land_own_total']
-    demo_data = {}
-    
-    for col in demo_columns:
-        if col in df.columns:
-            if pd.api.types.is_numeric_dtype(df[col]):
-                demo_stats = {
-                    'type': 'numeric',
-                    'count': df[col].count(),
-                    'mean': df[col].mean(),
-                    'median': df[col].median(),
-                    'std': df[col].std(),
-                    'min': df[col].min(),
-                    'max': df[col].max(),
-                    'missing': df[col].isna().sum()
-                }
-                demo_data[col] = demo_stats
-    
-    return demo_data
-
-def analyze_hh_characteristics(df):
-    """Analyze household characteristics"""
-    
-    hh_data = {}
-    
-    # Gender analysis
-    if 'demo.gender' in df.columns:
-        hh_data['gender'] = df['demo.gender'].value_counts().to_dict()
-    
-    # Site distribution
-    if 'site' in df.columns:
-        hh_data['site'] = df['site'].value_counts().to_dict()
-    
-    # Treatment distribution
-    if 'treatment' in df.columns:
-        hh_data['treatment'] = df['treatment'].value_counts().to_dict()
-    
-    return hh_data
-
-def calculate_survival_rates(df):
-    """Calculate early survival rates (placeholder function)"""
-    # This is a placeholder - you can implement actual survival rate calculation
-    return pd.DataFrame({
-        'species': ['gesho', 'grev', 'dec', 'wanza', 'papaya', 'coffee', 'moringa'],
-        'survival_rate': [0.85, 0.78, 0.92, 0.81, 0.88, 0.79, 0.86],
-        'observations': [100, 150, 80, 120, 90, 110, 95]
-    })
 
 def create_overview_tab(df):
     """Create the overview tab with overall summary"""
@@ -861,6 +831,20 @@ def create_overview_tab(df):
     
     st.markdown("---")
     
+    # Site Distribution Chart
+    st.markdown("#### 📍 Site Distribution")
+    if 'site' in df.columns:
+        site_counts = df['site'].value_counts()
+        fig_site = px.pie(
+            values=site_counts.values,
+            names=site_counts.index,
+            title="Survey Distribution by Site",
+            color_discrete_sequence=px.colors.sequential.Greens_r
+        )
+        st.plotly_chart(fig_site, use_container_width=True, key="site_distribution_chart")
+    else:
+        st.info("No site data available")
+    
     # Quick progress charts
     col1, col2 = st.columns(2)
     
@@ -877,7 +861,7 @@ def create_overview_tab(df):
                 color_discrete_sequence=['#2E8B57']
             )
             fig_daily.update_traces(mode='lines+markers')
-            st.plotly_chart(fig_daily, use_container_width=True)
+            st.plotly_chart(fig_daily, use_container_width=True, key="daily_submissions_chart")
         else:
             st.info("No completion time data available")
     
@@ -892,7 +876,7 @@ def create_overview_tab(df):
                 labels={'progress_pct': 'Progress (%)'},
                 color_discrete_sequence=['#FF6B35']
             )
-            st.plotly_chart(fig_enum, use_container_width=True)
+            st.plotly_chart(fig_enum, use_container_width=True, key="overview_enum_box_chart")
         else:
             st.info("No enumerator data available")
 
@@ -926,31 +910,16 @@ def create_progress_tab(df):
             
             st.markdown("---")
             
-            # Progress charts
+            # Progress charts - REMOVED Progress by Enumerator chart
             col1, col2 = st.columns(2)
             
             with col1:
-                # Top 20 enumerators progress
-                top_enum = enum_progress.head(20)
-                fig_progress = px.bar(
-                    top_enum,
-                    x='username',
-                    y='progress_pct',
-                    title="Progress by Enumerator (Top 20)",
-                    labels={'progress_pct': 'Progress (%)', 'username': 'Enumerator'},
-                    color='progress_pct',
-                    color_continuous_scale='greens'
-                )
-                fig_progress.update_layout(xaxis_tickangle=-45, yaxis_range=[0, 100])
-                st.plotly_chart(fig_progress, use_container_width=True)
-            
-            with col2:
-                # Surveys completed
+                # Surveys completed - Show ALL enumerators
                 fig_surveys = px.bar(
-                    top_enum,
+                    enum_progress,  # Use full dataset, not just top 20
                     x='username',
                     y='actual_count',
-                    title="Surveys Completed (Top 20)",
+                    title="Surveys Completed by Enumerator",
                     labels={'actual_count': 'Surveys Completed', 'username': 'Enumerator'},
                     color='actual_count',
                     color_continuous_scale='blues'
@@ -958,7 +927,18 @@ def create_progress_tab(df):
                 fig_surveys.update_layout(xaxis_tickangle=-45)
                 fig_surveys.add_hline(y=190, line_dash="dash", line_color="red", 
                                     annotation_text="Target", annotation_position="top left")
-                st.plotly_chart(fig_surveys, use_container_width=True)
+                st.plotly_chart(fig_surveys, use_container_width=True, key="surveys_by_enumerator_chart")
+            
+            with col2:
+                # Progress distribution box plot
+                fig_enum = px.box(
+                    enum_progress, 
+                    y='progress_pct',
+                    title="Enumerator Progress Distribution",
+                    labels={'progress_pct': 'Progress (%)'},
+                    color_discrete_sequence=['#FF6B35']
+                )
+                st.plotly_chart(fig_enum, use_container_width=True, key="progress_enum_box_chart")
             
             # Detailed table
             st.markdown("#### 📋 Detailed Progress Table")
@@ -1011,7 +991,7 @@ def create_progress_tab(df):
             )
             fig_progress.update_traces(texttemplate='%{y:.1f}%', textposition='outside')
             fig_progress.update_layout(yaxis_range=[0, 100])
-            st.plotly_chart(fig_progress, use_container_width=True)
+            st.plotly_chart(fig_progress, use_container_width=True, key="species_progress_chart")
             
             # Detailed table
             st.markdown("#### 📋 Species Progress Details")
@@ -1030,7 +1010,7 @@ def create_progress_tab(df):
 def create_data_quality_tab(df):
     """Create data quality check tab"""
     
-    tab1, tab2, tab3 = st.tabs(["📊 Troster Comparison", "✅ Planting Validation", "🌳 Trees Received"])
+    tab1, tab2 = st.tabs(["📊 Troster Comparison", "✅ Planting Validation"])
     
     with tab1:
         st.markdown("### 📊 Survey vs Troster Data Comparison")
@@ -1057,7 +1037,7 @@ def create_data_quality_tab(df):
             
             # Discrepancies table
             if not discrepancies_df.empty:
-                st.markdown("#### ⚠️ Significant Discrepancies (>25% Difference)")
+                st.markdown("#### ⚠️ Significant Discrepancies (>35% Difference)")
                 
                 display_df = discrepancies_df.copy()
                 display_df['Difference'] = display_df['difference_pct'].round(1).astype(str) + '%'
@@ -1143,125 +1123,259 @@ def create_data_quality_tab(df):
             st.dataframe(display_outliers, use_container_width=True)
         else:
             st.success("✅ No planting rate outliers found")
-    
-    with tab3:
-        st.markdown("### 🌳 Trees Received Analysis")
-        
-        species_columns_got = [
-            'oaf_trees.oaf_gesho.num_got',
-            'oaf_trees.oaf_grev.num_got',
-            'oaf_trees.oaf_dec.num_got',
-            'oaf_trees.oaf_wanza.num_got',
-            'oaf_trees.oaf_papaya.num_got',
-            'oaf_trees.oaf_coffee.num_got',
-            'oaf_trees.oaf_moringa.num_got'
-        ]
-        
-        trees_data = []
-        for col in species_columns_got:
-            if col in df.columns:
-                species = col.split('.')[2].replace('oaf_', '')
-                total_trees = df[col].sum()
-                avg_trees = df[col].mean()
-                farmers_received = df[df[col] > 0].shape[0]
-                
-                trees_data.append({
-                    'species': species,
-                    'total_trees': total_trees,
-                    'average_per_farmer': avg_trees,
-                    'farmers_received': farmers_received
-                })
-        
-        if trees_data:
-            trees_df = pd.DataFrame(trees_data)
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                fig_total = px.bar(
-                    trees_df,
-                    x='species',
-                    y='total_trees',
-                    title="Total Trees Received by Species",
-                    labels={'total_trees': 'Total Trees', 'species': 'Species'},
-                    color_discrete_sequence=['#2E8B57']
-                )
-                st.plotly_chart(fig_total, use_container_width=True)
-            
-            with col2:
-                fig_avg = px.bar(
-                    trees_df,
-                    x='species',
-                    y='average_per_farmer',
-                    title="Average Trees per Farmer by Species",
-                    labels={'average_per_farmer': 'Average Trees', 'species': 'Species'},
-                    color_discrete_sequence=['#FF6B35']
-                )
-                st.plotly_chart(fig_avg, use_container_width=True)
-            
-            st.markdown("#### 📋 Trees Received Summary")
-            st.dataframe(trees_df, use_container_width=True)
-        else:
-            st.info("No trees received data available.")
 
 def create_preliminary_results_tab(df):
-    """Create preliminary results tab"""
+    """Create preliminary results tab with improved structure"""
     
-    tab1, tab2, tab3, tab4 = st.tabs(["👥 HH Characteristics", "🌱 Planting Rates", "📈 Early Survival", "🌿 Survival Project"])
+    tab1, tab2, tab3, tab4 = st.tabs(["👤 Respondent Profile", "🌳 Trees Distribution", "🌱 Planting Analysis", "📈 Early Survival"])
     
     with tab1:
-        st.markdown("### 👥 Household Characteristics")
+        st.markdown("### 👤 Respondent Profile")
         
-        # Demographic analysis
-        demo_data = analyze_demographics(df)
-        hh_data = analyze_hh_characteristics(df)
+        # Create respondent profile table
+        profile_data = []
         
-        if demo_data or hh_data:
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown("#### 📊 Demographic Summary")
-                for var, stats in demo_data.items():
-                    with st.expander(f"{var.title()} Statistics", expanded=False):
-                        st.metric("Mean", f"{stats['mean']:.2f}")
-                        st.metric("Median", f"{stats['median']:.2f}")
-                        st.metric("Std Dev", f"{stats['std']:.2f}")
-                        st.metric("Range", f"{stats['min']:.2f} - {stats['max']:.2f}")
-            
-            with col2:
-                st.markdown("#### 📈 Distribution Analysis")
-                if 'demo.age' in demo_data:
-                    fig_age = px.histogram(
-                        df, 
-                        x='demo.age',
-                        title="Age Distribution",
-                        labels={'demo.age': 'Age'},
-                        color_discrete_sequence=['#2E8B57']
-                    )
-                    st.plotly_chart(fig_age, use_container_width=True)
-            
-            # HH characteristics
-            st.markdown("#### 🏠 Household Characteristics")
-            if hh_data:
-                for characteristic, distribution in hh_data.items():
-                    col1, col2 = st.columns([1, 2])
-                    with col1:
-                        st.write(f"**{characteristic.title()} Distribution:**")
-                        for key, value in distribution.items():
-                            st.write(f"- {key}: {value:,}")
-                    with col2:
-                        fig = px.pie(
-                            values=list(distribution.values()),
-                            names=list(distribution.keys()),
-                            title=f"{characteristic.title()} Distribution",
-                            color_discrete_sequence=px.colors.sequential.Greens_r
-                        )
-                        st.plotly_chart(fig, use_container_width=True)
+        # Age statistics
+        if 'demo.age' in df.columns:
+            # Convert to numeric and handle errors
+            df['demo.age'] = pd.to_numeric(df['demo.age'], errors='coerce')
+            age_data = df['demo.age'].dropna()
+            if len(age_data) > 0:
+                age_mean = age_data.mean()
+                age_min = age_data.min()
+                age_max = age_data.max()
+                profile_data.append({
+                    'Characteristic': 'Age',
+                    'Value': f"{age_mean:.1f} years",
+                    'Range': f"{age_min:.0f} - {age_max:.0f} years"
+                })
+        
+        # Gender statistics
+        if 'demo.gender' in df.columns:
+            female_count = (df['demo.gender'] == 'female').sum()
+            female_pct = (female_count / len(df)) * 100
+            profile_data.append({
+                'Characteristic': 'Gender',
+                'Value': f"{female_pct:.1f}% female",
+                'Range': f"{female_count:,} respondents"
+            })
+        
+        # Household size
+        if 'demo.hh_size' in df.columns:
+            df['demo.hh_size'] = pd.to_numeric(df['demo.hh_size'], errors='coerce')
+            hh_data = df['demo.hh_size'].dropna()
+            if len(hh_data) > 0:
+                hh_mean = hh_data.mean()
+                hh_min = hh_data.min()
+                hh_max = hh_data.max()
+                profile_data.append({
+                    'Characteristic': 'Household Size',
+                    'Value': f"{hh_mean:.1f} members",
+                    'Range': f"{hh_min:.0f} - {hh_max:.0f} members"
+                })
+        
+        # Marital status
+        if 'demo.marital_status' in df.columns:
+            marital_counts = df['demo.marital_status'].value_counts()
+            total_marital = marital_counts.sum()
+            for status, count in marital_counts.items():
+                pct = (count / total_marital) * 100
+                profile_data.append({
+                    'Characteristic': f'Marital Status: {status}',
+                    'Value': f"{pct:.1f}%",
+                    'Range': f"{count:,} respondents"
+                })
+        
+        # Display profile table
+        if profile_data:
+            profile_df = pd.DataFrame(profile_data)
+            st.dataframe(profile_df, use_container_width=True, hide_index=True)
         else:
-            st.info("No demographic data available.")
+            st.info("No demographic data available for respondent profile")
+        
+        # Education bar chart - FIXED: using demo.education_level
+        st.markdown("#### 📚 Education Level Distribution")
+        if 'demo.education_level' in df.columns:
+            # Map education codes to labels
+            education_map = {
+                0: 'No formal education',
+                1: 'Some primary',
+                2: 'Completed primary',
+                3: 'Some secondary',
+                4: 'Completed secondary',
+                5: 'College/University'
+            }
+            
+            df_edu = df.copy()
+            df_edu['education_label'] = df_edu['demo.education_level'].map(education_map)
+            edu_counts = df_edu['education_label'].value_counts().reset_index()
+            edu_counts.columns = ['Education Level', 'Count']
+            
+            fig_edu = px.bar(
+                edu_counts,
+                x='Education Level',
+                y='Count',
+                title="Education Level Distribution",
+                color='Count',
+                color_continuous_scale='greens'
+            )
+            fig_edu.update_layout(xaxis_tickangle=-45)
+            st.plotly_chart(fig_edu, use_container_width=True, key="education_level_chart")
+        else:
+            st.info("Education data not available (looking for 'demo.education_level')")
+        
+        # Household status pie chart
+        st.markdown("#### 🏠 Household Status")
+        if 'demo.respondent_hh_status' in df.columns:
+            hh_status_counts = df['demo.respondent_hh_status'].value_counts()
+            fig_hh = px.pie(
+                values=hh_status_counts.values,
+                names=hh_status_counts.index,
+                title="Household Status Distribution"
+            )
+            st.plotly_chart(fig_hh, use_container_width=True, key="household_status_chart")
+        else:
+            st.info("Household status data not available")
     
     with tab2:
-        st.markdown("### 🌱 Planting Rate Analysis")
+        st.markdown("### 🌳 Trees Distribution Analysis")
+        
+        # Trees Received Summary (calculated only for those who received trees)
+        st.markdown("#### 📊 Trees Received Summary")
+        
+        species_mapping = {
+            'gesho': 'oaf_trees.oaf_gesho.num_got',
+            'grev': 'oaf_trees.oaf_grev.num_got',
+            'dec': 'oaf_trees.oaf_dec.num_got',
+            'wanza': 'oaf_trees.oaf_wanza.num_got',
+            'papaya': 'oaf_trees.oaf_papaya.num_got',
+            'coffee': 'oaf_trees.oaf_coffee.num_got',
+            'moringa': 'oaf_trees.oaf_moringa.num_got'
+        }
+        
+        trees_received_data = []
+        
+        for species, col_got in species_mapping.items():
+            if col_got in df.columns:
+                # Convert to numeric to fix type errors
+                df[col_got] = pd.to_numeric(df[col_got], errors='coerce')
+                # Filter only those who received trees (num_got > 0)
+                received_data = df[df[col_got] > 0]
+                if len(received_data) > 0:
+                    total_trees = received_data[col_got].sum()
+                    avg_trees = received_data[col_got].mean()
+                    farmers_received = len(received_data)
+                    
+                    trees_received_data.append({
+                        'Species': species,
+                        'Total Trees Received': int(total_trees),
+                        'Average per Farmer': f"{avg_trees:.1f}",
+                        'Farmers Received': farmers_received
+                    })
+        
+        if trees_received_data:
+            trees_df = pd.DataFrame(trees_received_data)
+            st.dataframe(trees_df, use_container_width=True, hide_index=True)
+        else:
+            st.info("No trees received data available")
+        
+        # What happened to the trees analysis - FIXED DATA TYPE ISSUES
+        st.markdown("#### 📈 Tree Distribution Analysis")
+        
+        species_analysis = ['coffee', 'gesho', 'grev', 'dec', 'wanza', 'papaya', 'moringa']
+        tree_distribution_data = []
+        
+        for species in species_analysis:
+            got_col = f'oaf_trees.oaf_{species}.num_got'
+            planted_private_col = f'oaf_trees.oaf_{species}.num_planted_private'
+            sold_col = f'oaf_trees.oaf_{species}.num_sold'
+            planted_comm_col = f'oaf_trees.oaf_{species}.num_planted_comm'
+            
+            if all(col in df.columns for col in [got_col, planted_private_col, sold_col, planted_comm_col]):
+                # Convert all columns to numeric to fix type errors
+                df[got_col] = pd.to_numeric(df[got_col], errors='coerce')
+                df[planted_private_col] = pd.to_numeric(df[planted_private_col], errors='coerce')
+                df[sold_col] = pd.to_numeric(df[sold_col], errors='coerce')
+                df[planted_comm_col] = pd.to_numeric(df[planted_comm_col], errors='coerce')
+                
+                # Filter farmers who received this species
+                received_data = df[df[got_col] > 0]
+                if len(received_data) > 0:
+                    total_got = received_data[got_col].sum()
+                    total_planted_private = received_data[planted_private_col].sum()
+                    total_sold = received_data[sold_col].sum()
+                    total_planted_comm = received_data[planted_comm_col].sum()
+                    
+                    # Calculate percentages
+                    pct_planted_private = (total_planted_private / total_got * 100) if total_got > 0 else 0
+                    pct_sold = (total_sold / total_got * 100) if total_got > 0 else 0
+                    pct_planted_comm = (total_planted_comm / total_got * 100) if total_got > 0 else 0
+                    
+                    # Other category (difference)
+                    accounted_for = total_planted_private + total_sold + total_planted_comm
+                    other_trees = max(0, total_got - accounted_for)
+                    pct_other = (other_trees / total_got * 100) if total_got > 0 else 0
+                    
+                    tree_distribution_data.append({
+                        'Species': species,
+                        'Planted Private (%)': f"{pct_planted_private:.1f}%",
+                        'Sold (%)': f"{pct_sold:.1f}%", 
+                        'Planted Community (%)': f"{pct_planted_comm:.1f}%",
+                        'Other (%)': f"{pct_other:.1f}%",
+                        'Total Received': int(total_got)
+                    })
+        
+        if tree_distribution_data:
+            distribution_df = pd.DataFrame(tree_distribution_data)
+            st.dataframe(distribution_df, use_container_width=True, hide_index=True)
+            
+            # Visualization of tree distribution
+            st.markdown("#### 📊 Tree Distribution Visualization")
+            
+            # Prepare data for stacked bar chart
+            viz_data = []
+            for item in tree_distribution_data:
+                viz_data.append({
+                    'Species': item['Species'],
+                    'Category': 'Planted Private',
+                    'Percentage': float(item['Planted Private (%)'].replace('%', ''))
+                })
+                viz_data.append({
+                    'Species': item['Species'],
+                    'Category': 'Sold',
+                    'Percentage': float(item['Sold (%)'].replace('%', ''))
+                })
+                viz_data.append({
+                    'Species': item['Species'],
+                    'Category': 'Planted Community', 
+                    'Percentage': float(item['Planted Community (%)'].replace('%', ''))
+                })
+                viz_data.append({
+                    'Species': item['Species'],
+                    'Category': 'Other',
+                    'Percentage': float(item['Other (%)'].replace('%', ''))
+                })
+            
+            viz_df = pd.DataFrame(viz_data)
+            
+            fig_dist = px.bar(
+                viz_df,
+                x='Species',
+                y='Percentage',
+                color='Category',
+                title="Tree Distribution by Species and Category",
+                barmode='stack',
+                labels={'Percentage': 'Percentage (%)', 'Species': 'Species'}
+            )
+            st.plotly_chart(fig_dist, use_container_width=True, key="tree_distribution_chart")
+        else:
+            st.info("No tree distribution data available for analysis")
+    
+    with tab3:
+        st.markdown("### 🌱 Planting Analysis")
+        
+        # Planting rate analysis
+        st.markdown("#### 📊 Planting Rate Analysis")
         
         planting_rates_df = calculate_planting_rates(df)
         
@@ -1290,7 +1404,7 @@ def create_preliminary_results_tab(df):
             )
             fig_rates.update_traces(texttemplate='%{y:.1%}', textposition='outside')
             fig_rates.update_layout(yaxis_tickformat='.0%')
-            st.plotly_chart(fig_rates, use_container_width=True)
+            st.plotly_chart(fig_rates, use_container_width=True, key="planting_rates_chart")
             
             # Detailed table
             st.markdown("#### 📋 Planting Rate Details")
@@ -1304,71 +1418,136 @@ def create_preliminary_results_tab(df):
         
         else:
             st.info("No planting rate data available.")
+        
+        # Percentage planted on private land
+        st.markdown("#### 🏡 Trees Planted on Private Land")
+        
+        private_land_data = []
+        
+        for species in ['coffee', 'gesho', 'grev', 'dec', 'wanza', 'papaya', 'moringa']:
+            got_col = f'oaf_trees.oaf_{species}.num_got'
+            planted_private_col = f'oaf_trees.oaf_{species}.num_planted_private'
+            
+            if got_col in df.columns and planted_private_col in df.columns:
+                # Convert to numeric
+                df[got_col] = pd.to_numeric(df[got_col], errors='coerce')
+                df[planted_private_col] = pd.to_numeric(df[planted_private_col], errors='coerce')
+                
+                # Farmers who received this species
+                received_data = df[df[got_col] > 0]
+                if len(received_data) > 0:
+                    total_got = received_data[got_col].sum()
+                    total_planted_private = received_data[planted_private_col].sum()
+                    
+                    pct_private = (total_planted_private / total_got * 100) if total_got > 0 else 0
+                    
+                    private_land_data.append({
+                        'Species': species,
+                        'Planted on Private Land (%)': f"{pct_private:.1f}%",
+                        'Total Planted Private': int(total_planted_private),
+                        'Total Received': int(total_got)
+                    })
+        
+        if private_land_data:
+            private_df = pd.DataFrame(private_land_data)
+            st.dataframe(private_df, use_container_width=True, hide_index=True)
+        else:
+            st.info("No private land planting data available")
     
-    with tab3:
+    with tab4:
         st.markdown("### 📈 Early Survival Rates")
         
-        survival_df = calculate_survival_rates(df)
+        # Calculate early survival rates - FIXED DATA TYPE ISSUES
+        survival_data = []
         
-        if not survival_df.empty:
+        for species in ['coffee', 'gesho', 'grev', 'dec', 'wanza', 'papaya', 'moringa']:
+            planted_private_col = f'oaf_trees.oaf_{species}.num_planted_private'
+            non_oaf_col = f'private_land_plantation.num_nonoaf_{species}_planted'
+            survived_col = f'oaf_trees.oaf_{species}.num_survived'
+            
+            # Convert all columns to numeric
+            if planted_private_col in df.columns:
+                df[planted_private_col] = pd.to_numeric(df[planted_private_col], errors='coerce')
+            if non_oaf_col in df.columns:
+                df[non_oaf_col] = pd.to_numeric(df[non_oaf_col], errors='coerce')
+            if survived_col in df.columns:
+                df[survived_col] = pd.to_numeric(df[survived_col], errors='coerce')
+            
+            # Check if we have survival data
+            if survived_col in df.columns:
+                # Calculate total planted (OAF + non-OAF on private land)
+                total_planted = 0
+                if planted_private_col in df.columns:
+                    total_planted += df[planted_private_col].sum()
+                if non_oaf_col in df.columns:
+                    total_planted += df[non_oaf_col].sum()
+                
+                total_survived = df[survived_col].sum() if survived_col in df.columns else 0
+                
+                if total_planted > 0:
+                    survival_rate = (total_survived / total_planted) * 100
+                    
+                    # Calculate averages
+                    planted_farmers = len(df[df[planted_private_col] > 0]) if planted_private_col in df.columns else 0
+                    survived_farmers = len(df[df[survived_col] > 0]) if survived_col in df.columns else 0
+                    
+                    avg_planted = total_planted / planted_farmers if planted_farmers > 0 else 0
+                    avg_survived = total_survived / survived_farmers if survived_farmers > 0 else 0
+                    
+                    survival_data.append({
+                        'Species': species,
+                        'Total Planted': int(total_planted),
+                        'Total Survived': int(total_survived),
+                        'Survival Rate (%)': f"{survival_rate:.1f}%",
+                        'Average Planted': f"{avg_planted:.1f}",
+                        'Average Survived': f"{avg_survived:.1f}"
+                    })
+        
+        if survival_data:
+            survival_df = pd.DataFrame(survival_data)
+            
             col1, col2 = st.columns(2)
             
             with col1:
-                avg_survival = survival_df['survival_rate'].mean()
-                st.metric("Average Survival Rate", f"{avg_survival:.1%}")
+                avg_survival = np.mean([float(x['Survival Rate (%)'].replace('%', '')) for x in survival_data])
+                st.metric("Average Survival Rate", f"{avg_survival:.1f}%")
             
             with col2:
-                total_obs = survival_df['observations'].sum()
-                st.metric("Total Observations", f"{total_obs:,}")
+                total_obs = survival_df['Total Planted'].sum()
+                st.metric("Total Trees Planted", f"{total_obs:,}")
             
             st.markdown("---")
+            
+            # Display survival table
+            st.markdown("#### 📋 Survival Rate Details")
+            display_survival_df = survival_df[['Species', 'Total Planted', 'Total Survived', 'Survival Rate (%)', 'Average Planted', 'Average Survived']].copy()
+            st.dataframe(display_survival_df, use_container_width=True, hide_index=True)
             
             # Survival rate visualization
             fig_survival = px.bar(
                 survival_df,
-                x='species',
-                y='survival_rate',
+                x='Species',
+                y=[float(x.replace('%', '')) for x in survival_df['Survival Rate (%)']],
                 title="Early Survival Rates by Species",
-                labels={'survival_rate': 'Survival Rate', 'species': 'Species'},
-                color='survival_rate',
+                labels={'y': 'Survival Rate (%)', 'Species': 'Species'},
+                color=[float(x.replace('%', '')) for x in survival_df['Survival Rate (%)']],
                 color_continuous_scale='viridis'
             )
-            fig_survival.update_traces(texttemplate='%{y:.1%}', textposition='outside')
-            fig_survival.update_layout(yaxis_tickformat='.0%')
-            st.plotly_chart(fig_survival, use_container_width=True)
+            fig_survival.update_traces(texttemplate='%{y:.1f}%', textposition='outside')
+            st.plotly_chart(fig_survival, use_container_width=True, key="survival_rates_chart")
             
-            st.info("🔬 Early survival analysis is based on preliminary field observations and will be updated with more complete data.")
-        
         else:
-            st.info("Survival rate analysis will be available as data collection progresses.")
-    
-    with tab4:
-        st.markdown("### 🌿 Survival Project Analysis")
-        
-        st.markdown("""
-        <div style='background-color: #f8fff9; padding: 20px; border-radius: 10px; border-left: 4px solid #2E8B57;'>
-            <h4 style='color: #1e5631; margin-top: 0;'>📋 Project Overview</h4>
-            <p style='color: #555;'>The survival project monitoring system is currently being set up. This section will include:</p>
-            <ul style='color: #555;'>
-                <li>Long-term tree survival tracking</li>
-                <li>Environmental impact assessments</li>
-                <li>Farmer adoption and satisfaction metrics</li>
-                <li>Economic impact analysis</li>
-            </ul>
-            <p style='color: #555;'><strong>Status:</strong> Data collection in progress</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Placeholder for future content
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.metric("Planned Monitoring Sites", "25")
-            st.metric("Target Sample Size", "1,200")
-        
-        with col2:
-            st.metric("Monitoring Frequency", "Quarterly")
-            st.metric("Project Duration", "24 months")
+            st.info("""
+            **Early Survival Analysis**
+            
+            Survival rate analysis requires the `num_survived` columns for each species. 
+            This data will be available after the first survival monitoring round.
+            
+            Expected columns:
+            - `oaf_trees.oaf_coffee.num_survived`
+            - `oaf_trees.oaf_gesho.num_survived`
+            - etc.
+            """)
 
 def main():
     # Load logo and create header
@@ -1467,19 +1646,10 @@ def main():
             selected_site = 'All'
             st.info("No data loaded. Click 'Fetch Latest Data' to begin.")
         
-        # Data export in sidebar
+        # Data export removed for security
         st.markdown("---")
-        st.markdown("### 💾 Quick Export")
-        
-        if 'df' in st.session_state:
-            csv = st.session_state['df'].to_csv(index=False)
-            st.download_button(
-                label="📥 Download Full Dataset",
-                data=csv,
-                file_name=f"oaf_amhara_survey_{datetime.now().strftime('%Y%m%d')}.csv",
-                mime="text/csv",
-                use_container_width=True
-            )
+        st.markdown("### 🔒 Data Security")
+        st.info("Data export functionality has been disabled for security reasons.")
     
     # Fetch data from sidebar button
     if fetch_button:
