@@ -865,20 +865,7 @@ def create_overview_tab(df):
         else:
             st.info("No completion time data available")
     
-    with col2:
-        st.markdown("#### 👥 Enumerator Progress Overview")
-        enum_progress = calculate_enumerator_progress(df)
-        if not enum_progress.empty:
-            fig_enum = px.box(
-                enum_progress, 
-                y='progress_pct',
-                title="Enumerator Progress Distribution",
-                labels={'progress_pct': 'Progress (%)'},
-                color_discrete_sequence=['#FF6B35']
-            )
-            st.plotly_chart(fig_enum, use_container_width=True, key="overview_enum_box_chart")
-        else:
-            st.info("No enumerator data available")
+    # Note: removed the Enumerator Progress Overview in the Overview tab per request.
 
 def create_progress_tab(df):
     """Create combined progress tab with enumerator and species progress"""
@@ -930,15 +917,28 @@ def create_progress_tab(df):
                 st.plotly_chart(fig_surveys, use_container_width=True, key="surveys_by_enumerator_chart")
             
             with col2:
-                # Progress distribution box plot
-                fig_enum = px.box(
-                    enum_progress, 
-                    y='progress_pct',
-                    title="Enumerator Progress Distribution",
-                    labels={'progress_pct': 'Progress (%)'},
-                    color_discrete_sequence=['#FF6B35']
-                )
-                st.plotly_chart(fig_enum, use_container_width=True, key="progress_enum_box_chart")
+                # Show surveys completed by date (using completed_time) colored by enumerator
+                st.markdown("#### 📅 Surveys Completed by Date (by Enumerator)")
+                if 'completed_time' in df.columns and 'username' in df.columns:
+                    df_time = df.copy()
+                    df_time['date'] = pd.to_datetime(df_time['completed_time'], errors='coerce').dt.date
+                    grouped = df_time.groupby(['date', 'username']).size().reset_index(name='count')
+                    if not grouped.empty:
+                        fig_time = px.bar(
+                            grouped,
+                            x='date',
+                            y='count',
+                            color='username',
+                            title='Surveys Completed by Date and Enumerator',
+                            labels={'date': 'Date', 'count': 'Surveys Completed', 'username': 'Enumerator'},
+                            color_discrete_sequence=px.colors.qualitative.Dark24
+                        )
+                        fig_time.update_layout(xaxis_tickangle=-45)
+                        st.plotly_chart(fig_time, use_container_width=True, key='surveys_by_date_enumerator_chart')
+                    else:
+                        st.info('No completion time data available for plotting')
+                else:
+                    st.info('No completion time or username data available')
             
             # Detailed table
             st.markdown("#### 📋 Detailed Progress Table")
@@ -1392,19 +1392,7 @@ def create_preliminary_results_tab(df):
             
             st.markdown("---")
             
-            # Planting rate by species
-            fig_rates = px.bar(
-                planting_rates_df,
-                x='species',
-                y='average_planting_rate',
-                title="Planting Rate by Species",
-                labels={'average_planting_rate': 'Planting Rate', 'species': 'Species'},
-                color='average_planting_rate',
-                color_continuous_scale='greens'
-            )
-            fig_rates.update_traces(texttemplate='%{y:.1%}', textposition='outside')
-            fig_rates.update_layout(yaxis_tickformat='.0%')
-            st.plotly_chart(fig_rates, use_container_width=True, key="planting_rates_chart")
+            # Planting rate chart removed per request (keeping metrics and table only)
             
             # Detailed table
             st.markdown("#### 📋 Planting Rate Details")
@@ -1457,97 +1445,97 @@ def create_preliminary_results_tab(df):
     with tab4:
         st.markdown("### 📈 Early Survival Rates")
         
-        # Calculate early survival rates - FIXED DATA TYPE ISSUES
+        # Early survival analysis (per request)
+        # We'll look for either `trees_survived.num_alive_<species>` or the older `oaf_trees.oaf_<species>.num_survived`.
         survival_data = []
-        
-        for species in ['coffee', 'gesho', 'grev', 'dec', 'wanza', 'papaya', 'moringa']:
+        species_list = ['coffee', 'gesho', 'grev', 'dec', 'wanza', 'papaya', 'moringa']
+
+        for species in species_list:
             planted_private_col = f'oaf_trees.oaf_{species}.num_planted_private'
             non_oaf_col = f'private_land_plantation.num_nonoaf_{species}_planted'
-            survived_col = f'oaf_trees.oaf_{species}.num_survived'
-            
-            # Convert all columns to numeric
-            if planted_private_col in df.columns:
-                df[planted_private_col] = pd.to_numeric(df[planted_private_col], errors='coerce')
-            if non_oaf_col in df.columns:
-                df[non_oaf_col] = pd.to_numeric(df[non_oaf_col], errors='coerce')
-            if survived_col in df.columns:
-                df[survived_col] = pd.to_numeric(df[survived_col], errors='coerce')
-            
-            # Check if we have survival data
-            if survived_col in df.columns:
-                # Calculate total planted (OAF + non-OAF on private land)
-                total_planted = 0
-                if planted_private_col in df.columns:
-                    total_planted += df[planted_private_col].sum()
-                if non_oaf_col in df.columns:
-                    total_planted += df[non_oaf_col].sum()
-                
-                total_survived = df[survived_col].sum() if survived_col in df.columns else 0
-                
-                if total_planted > 0:
-                    survival_rate = (total_survived / total_planted) * 100
-                    
-                    # Calculate averages
-                    planted_farmers = len(df[df[planted_private_col] > 0]) if planted_private_col in df.columns else 0
-                    survived_farmers = len(df[df[survived_col] > 0]) if survived_col in df.columns else 0
-                    
-                    avg_planted = total_planted / planted_farmers if planted_farmers > 0 else 0
-                    avg_survived = total_survived / survived_farmers if survived_farmers > 0 else 0
-                    
-                    survival_data.append({
-                        'Species': species,
-                        'Total Planted': int(total_planted),
-                        'Total Survived': int(total_survived),
-                        'Survival Rate (%)': f"{survival_rate:.1f}%",
-                        'Average Planted': f"{avg_planted:.1f}",
-                        'Average Survived': f"{avg_survived:.1f}"
-                    })
-        
+            survived_col_new = f'trees_survived.num_alive_{species}'
+            survived_col_old = f'oaf_trees.oaf_{species}.num_survived'
+
+            # Work on a local copy
+            df_local = df.copy()
+
+            # Ensure numeric
+            if planted_private_col in df_local.columns:
+                df_local[planted_private_col] = pd.to_numeric(df_local[planted_private_col], errors='coerce').fillna(0)
+            if non_oaf_col in df_local.columns:
+                df_local[non_oaf_col] = pd.to_numeric(df_local[non_oaf_col], errors='coerce').fillna(0)
+
+            # Compute per-observation total planted (OAF private + non-OAF private)
+            df_local['planted_total'] = 0
+            if planted_private_col in df_local.columns:
+                df_local['planted_total'] = df_local['planted_total'] + df_local[planted_private_col]
+            if non_oaf_col in df_local.columns:
+                df_local['planted_total'] = df_local['planted_total'] + df_local[non_oaf_col]
+
+            # Determine survived column
+            if survived_col_new in df_local.columns:
+                df_local['survived_count'] = pd.to_numeric(df_local[survived_col_new], errors='coerce').fillna(0)
+            elif survived_col_old in df_local.columns:
+                df_local['survived_count'] = pd.to_numeric(df_local[survived_col_old], errors='coerce').fillna(0)
+            else:
+                # No survival data for this species
+                continue
+
+            # Keep only rows where we have planted or survived info
+            valid = df_local[(df_local['planted_total'] > 0) | (df_local['survived_count'] > 0)]
+
+            if len(valid) == 0:
+                continue
+
+            total_planted = int(valid['planted_total'].sum())
+            total_survived = int(valid['survived_count'].sum())
+
+            # Average per farmer (only among farmers with >0 values)
+            avg_planted_per_farmer = valid.loc[valid['planted_total'] > 0, 'planted_total'].mean() if (valid['planted_total'] > 0).any() else 0
+            avg_survived_per_farmer = valid.loc[valid['survived_count'] > 0, 'survived_count'].mean() if (valid['survived_count'] > 0).any() else 0
+
+            survival_rate = (total_survived / total_planted * 100) if total_planted > 0 else 0
+
+            survival_data.append({
+                'Species': species,
+                'Total Planted': total_planted,
+                'Total Survived': total_survived,
+                'Average Planted (per farmer)': f"{avg_planted_per_farmer:.1f}",
+                'Average Survived (per farmer)': f"{avg_survived_per_farmer:.1f}",
+                'Survival Rate (%)': f"{survival_rate:.1f}%"
+            })
+
         if survival_data:
             survival_df = pd.DataFrame(survival_data)
-            
+
             col1, col2 = st.columns(2)
-            
             with col1:
+                # Average of species survival rates
                 avg_survival = np.mean([float(x['Survival Rate (%)'].replace('%', '')) for x in survival_data])
                 st.metric("Average Survival Rate", f"{avg_survival:.1f}%")
-            
             with col2:
-                total_obs = survival_df['Total Planted'].sum()
-                st.metric("Total Trees Planted", f"{total_obs:,}")
-            
+                total_planted_all = survival_df['Total Planted'].sum()
+                st.metric("Total Trees Planted (all species)", f"{total_planted_all:,}")
+
             st.markdown("---")
-            
-            # Display survival table
             st.markdown("#### 📋 Survival Rate Details")
-            display_survival_df = survival_df[['Species', 'Total Planted', 'Total Survived', 'Survival Rate (%)', 'Average Planted', 'Average Survived']].copy()
-            st.dataframe(display_survival_df, use_container_width=True, hide_index=True)
-            
-            # Survival rate visualization
+            st.dataframe(survival_df[['Species', 'Total Planted', 'Total Survived', 'Average Planted (per farmer)', 'Average Survived (per farmer)', 'Survival Rate (%)']], use_container_width=True, hide_index=True)
+
+            # Visualization of survival rate by species
+            survival_numeric = [float(x.replace('%', '')) for x in survival_df['Survival Rate (%)']]
             fig_survival = px.bar(
                 survival_df,
                 x='Species',
-                y=[float(x.replace('%', '')) for x in survival_df['Survival Rate (%)']],
-                title="Early Survival Rates by Species",
+                y=survival_numeric,
+                title='Early Survival Rates by Species',
                 labels={'y': 'Survival Rate (%)', 'Species': 'Species'},
-                color=[float(x.replace('%', '')) for x in survival_df['Survival Rate (%)']],
+                color=survival_numeric,
                 color_continuous_scale='viridis'
             )
             fig_survival.update_traces(texttemplate='%{y:.1f}%', textposition='outside')
             st.plotly_chart(fig_survival, use_container_width=True, key="survival_rates_chart")
-            
         else:
-            st.info("""
-            **Early Survival Analysis**
-            
-            Survival rate analysis requires the `num_survived` columns for each species. 
-            This data will be available after the first survival monitoring round.
-            
-            Expected columns:
-            - `oaf_trees.oaf_coffee.num_survived`
-            - `oaf_trees.oaf_gesho.num_survived`
-            - etc.
-            """)
+            st.info("No early survival data found. Expected columns like `trees_survived.num_alive_coffee` or `oaf_trees.oaf_coffee.num_survived`.")
 
 def main():
     # Load logo and create header
