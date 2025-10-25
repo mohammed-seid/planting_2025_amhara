@@ -1550,24 +1550,136 @@ def create_preliminary_results_tab(df):
                 'Avg Survived (per planter)': round(avg_survived, 1)
             }
 
-        # Build a Treatment vs Control table per species (omit Overall as requested)
-        for species in species_list:
-            st.markdown(f"##### 🌱 {species.capitalize()}")
-            if 'treatment' in df.columns:
-                treatment_metrics = compute_metrics(df[df['treatment'] == 'treatment'], species)
-                control_metrics = compute_metrics(df[df['treatment'] == 'control'], species)
-            else:
-                # If no treatment column, compute both on full dataset but keep keys
-                treatment_metrics = compute_metrics(df, species)
-                control_metrics = compute_metrics(df, species)
+        # Helper to build and style a Treatment vs Control table from precomputed metrics
+        def _build_styled_table(treatment_metrics, control_metrics):
+            metrics = list(treatment_metrics.keys())
 
             tbl = pd.DataFrame({
-                'Metric': list(treatment_metrics.keys()),
-                'Treatment': list(treatment_metrics.values()),
-                'Control': list(control_metrics.values())
-            })
-            tbl = tbl.set_index('Metric')
-            st.dataframe(tbl, use_container_width=True, height=300)
+                'Metric': metrics,
+                'Treatment': [treatment_metrics.get(m, 0) for m in metrics],
+                'Control': [control_metrics.get(m, 0) for m in metrics]
+            }).set_index('Metric')
+
+            # Difference (Treatment - Control) for numeric metrics except sample size
+            diff_list = []
+            for m in metrics:
+                if m == 'Sample Size (received OAF)':
+                    diff_list.append('')
+                else:
+                    try:
+                        tval = float(treatment_metrics.get(m, 0) or 0)
+                        cval = float(control_metrics.get(m, 0) or 0)
+                        diff_list.append(round(tval - cval, 1))
+                    except Exception:
+                        diff_list.append('')
+
+            tbl['Difference'] = diff_list
+
+            # Raw division helper (returns float) for derived rate calculations
+            def _raw_div(a, b):
+                try:
+                    a = float(a)
+                    b = float(b)
+                    return a / b if b != 0 else 0.0
+                except Exception:
+                    return 0.0
+
+            # Derived rates (kept numeric here; formatted later)
+            t_oaf_rate = _raw_div(treatment_metrics.get('Avg OAF Trees Planted (per farmer)', 0), treatment_metrics.get('Avg OAF Trees Received', 0))
+            c_oaf_rate = _raw_div(control_metrics.get('Avg OAF Trees Planted (per farmer)', 0), control_metrics.get('Avg OAF Trees Received', 0))
+            diff_oaf_rate = t_oaf_rate - c_oaf_rate
+
+            t_early_rate = _raw_div(treatment_metrics.get('Avg Survived (per planter)', 0), treatment_metrics.get('Avg Total Planted (per planter)', 0))
+            c_early_rate = _raw_div(control_metrics.get('Avg Survived (per planter)', 0), control_metrics.get('Avg Total Planted (per planter)', 0))
+            diff_early_rate = t_early_rate - c_early_rate
+
+            extra = pd.DataFrame({
+                'Metric': ['OAF Trees Planting Rate', 'Early Survival Rate'],
+                'Treatment': [t_oaf_rate, t_early_rate],
+                'Control': [c_oaf_rate, c_early_rate],
+                'Difference': [diff_oaf_rate, diff_early_rate]
+            }).set_index('Metric')
+
+            tbl = pd.concat([tbl, extra])
+
+            # Formatting: one decimal for most numbers; sample size integer; derived rates as percent with 2 decimals
+            display_tbl = tbl.copy()
+            for idx in display_tbl.index:
+                if idx == 'Sample Size (received OAF)':
+                    for col in ['Treatment', 'Control']:
+                        val = display_tbl.at[idx, col]
+                        try:
+                            display_tbl.at[idx, col] = f"{int(float(val))}"
+                        except Exception:
+                            display_tbl.at[idx, col] = ''
+                    if 'Difference' in display_tbl.columns:
+                        display_tbl.at[idx, 'Difference'] = ''
+                elif idx in ['OAF Trees Planting Rate', 'Early Survival Rate']:
+                    # display as percentage with 2 decimals
+                    for col in ['Treatment', 'Control', 'Difference']:
+                        if col in display_tbl.columns:
+                            val = display_tbl.at[idx, col]
+                            try:
+                                pct = float(val) * 100
+                                display_tbl.at[idx, col] = f"{pct:.2f}%"
+                            except Exception:
+                                display_tbl.at[idx, col] = ''
+                else:
+                    for col in ['Treatment', 'Control', 'Difference']:
+                        if col in display_tbl.columns:
+                            val = display_tbl.at[idx, col]
+                            if val is None or val == '':
+                                display_tbl.at[idx, col] = ''
+                            else:
+                                try:
+                                    display_tbl.at[idx, col] = f"{float(val):.1f}"
+                                except Exception:
+                                    display_tbl.at[idx, col] = ''
+
+            # Styling for derived rows
+            def _highlight_special_rows(row):
+                if row.name == 'OAF Trees Planting Rate':
+                    return ['background-color: #e6f2ff'] * len(row)
+                if row.name == 'Early Survival Rate':
+                    return ['background-color: #e6ffe6'] * len(row)
+                return [''] * len(row)
+
+            return display_tbl.style.apply(_highlight_special_rows, axis=1)
+
+        # Build per-species tables; if site exists, render site-specific (core / nep) side-by-side
+        for species in species_list:
+            st.markdown(f"##### 🌱 {species.capitalize()}")
+
+            if 'site' in df.columns:
+                available_sites = [s for s in ['core', 'nep'] if s in df['site'].unique()]
+                if not available_sites:
+                    available_sites = sorted(df['site'].dropna().unique().tolist())
+
+                cols = st.columns(len(available_sites))
+                for i, site_name in enumerate(available_sites):
+                    with cols[i]:
+                        st.markdown(f"**{site_name.upper()}**")
+                        subset = df[df['site'] == site_name]
+                        if 'treatment' in subset.columns:
+                            t_metrics_site = compute_metrics(subset[subset['treatment'] == 'treatment'], species)
+                            c_metrics_site = compute_metrics(subset[subset['treatment'] == 'control'], species)
+                        else:
+                            t_metrics_site = compute_metrics(subset, species)
+                            c_metrics_site = compute_metrics(subset, species)
+
+                        styled_site = _build_styled_table(t_metrics_site, c_metrics_site)
+                        st.dataframe(styled_site, use_container_width=True, height=300)
+            else:
+                # No site split: show combined Treatment vs Control
+                if 'treatment' in df.columns:
+                    t_metrics = compute_metrics(df[df['treatment'] == 'treatment'], species)
+                    c_metrics = compute_metrics(df[df['treatment'] == 'control'], species)
+                else:
+                    t_metrics = compute_metrics(df, species)
+                    c_metrics = compute_metrics(df, species)
+
+                styled_tbl = _build_styled_table(t_metrics, c_metrics)
+                st.dataframe(styled_tbl, use_container_width=True, height=340)
     
     with tab4:
         st.markdown("### 📈 Early Survival Rates")
